@@ -320,15 +320,15 @@ class Algorithm:
                     )
                     * advantage
                 )
-                # temp_policy_loss = -tf.reduce_sum(
-                #     tf.to_float(weight_list[task_index]) * tf.minimum(surr1, surr2)
-                # ) / tf.maximum(tf.reduce_sum(tf.to_float(weight_list[task_index])), 1.0)
-                # dual-clip PPO
-                clip = tf.minimum(surr1, surr2)
-                clip = tf.where(tf.math.less(advantage, 0), tf.maximum(clip, 3.0 * advantage), clip)
                 temp_policy_loss = -tf.reduce_sum(
-                    tf.to_float(weight_list[task_index]) * clip
+                    tf.to_float(weight_list[task_index]) * tf.minimum(surr1, surr2)
                 ) / tf.maximum(tf.reduce_sum(tf.to_float(weight_list[task_index])), 1.0)
+                # # dual-clip PPO
+                # clip = tf.minimum(surr1, surr2)
+                # clip = tf.where(tf.math.less(advantage, 0), tf.maximum(clip, 3.0 * advantage), clip)
+                # temp_policy_loss = -tf.reduce_sum(
+                #     tf.to_float(weight_list[task_index]) * clip
+                # ) / tf.maximum(tf.reduce_sum(tf.to_float(weight_list[task_index])), 1.0)
                 self.policy_cost = self.policy_cost + temp_policy_loss
         # cross entropy loss
         current_entropy_loss_index = 0
