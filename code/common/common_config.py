@@ -25,29 +25,29 @@ class ModelConfig:
     LSTM_TIME_STEPS = 16
     LSTM_UNIT_SIZE = 512
     DATA_SPLIT_SHAPE = [
-        809,
+        809,    # seri_vec (feature, leagl_action)
+        4,      # reward
+        1,      # advantage
+        1,      # label
         1,
         1,
         1,
         1,
         1,
-        1,
-        1,
-        1,
-        12,
+        12,     # old prob
         16,
         16,
         16,
         16,
         8,
+        1,      # weight
         1,
         1,
         1,
         1,
         1,
-        1,
-        1,
-        512,
+        1,      # is_train
+        512,    # lstm
         512,
     ]
     SERI_VEC_SPLIT_SHAPE = [(725,), (84,)]
@@ -84,30 +84,30 @@ class ModelConfig:
         "is_train, lstm_cell, lstm_hidden_state"
     )
     data_shapes = [
-        [12944],
+        [12944],    # seri_vec (feature, legal action)
+        [64],       # reward #  16 * 4
+        [16],       # advantage
+        [16],       # label_list
         [16],
         [16],
         [16],
         [16],
         [16],
-        [16],
-        [16],
-        [16],
-        [192],
+        [192],      # old_label_probability
         [256],
         [256],
         [256],
         [256],
         [128],
+        [16],       # weight_list
         [16],
         [16],
         [16],
         [16],
         [16],
-        [16],
-        [16],
-        [512],
-        [512],
+        [16],       # is_train
+        [512],      # init_lstm_cell
+        [512],      # init_lstm_hidden
     ]
     key_types = (
         "tf.float32,tf.float32,tf.float32,"
@@ -122,7 +122,7 @@ class ModelConfig:
 
 
 class Config:
-    slow_time = 0.0
+    slow_time = 0.025
     TRAIN_MODE = 0
     EVAL_MODE = 1
     BATTLE_MODE = 2

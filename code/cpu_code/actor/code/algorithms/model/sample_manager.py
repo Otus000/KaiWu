@@ -14,7 +14,7 @@ LOG = CommonLogger.get_logger()
 
 class SampleManager:
     def __init__(
-        self, mem_pool_addr, mem_pool_type, num_agents, game_id=None, local_mode=False
+            self, mem_pool_addr, mem_pool_type, num_agents, game_id=None, local_mode=False
     ):
         # connect to mem pool
         # deal with multiple mem_pool, randomly select one to connect!
@@ -59,31 +59,33 @@ class SampleManager:
 
     @log_time("save_sample")
     def save_sample(
-        self,
-        frame_no,
-        vec_feature,
-        legal_action,
-        action,
-        reward,
-        value,
-        prob,
-        sub_action,
-        lstm_cell,
-        lstm_hidden,
-        done,
-        agent_id,
-        is_train=True,
-        game_id=None,
-        uuid=None,
+            self,
+            frame_no,
+            vec_feature,
+            legal_action,
+            action,
+            reward,
+            value,
+            prob,
+            sub_action,
+            lstm_cell,
+            lstm_hidden,
+            done,
+            agent_id,
+            is_train=True,
+            game_id=None,
+            uuid=None,
     ):
         """
         samples must saved by frame_no order
         """
-        reward = self._clip_reward(reward)
+        # for i, r in enumerate(reward):
+        #     reward[i] = self._clip_reward(r)
+        # reward[0] = self._clip_reward(reward[0])
         rl_data_info = RLDataInfo()
         # rl_data_info.game_id = struct.pack('%ss' % len(game_id), bytes(game_id, encoding='utf8'))
 
-        value = value.flatten()[0]
+        value = value.flatten()
         lstm_cell = lstm_cell.flatten()
         lstm_hidden = lstm_hidden.flatten()
 
@@ -127,7 +129,8 @@ class SampleManager:
         if len(self.rl_data_map[agent_id]) > 0:
             last_key = list(self.rl_data_map[agent_id].keys())[-1]
             last_rl_data_info = self.rl_data_map[agent_id][last_key]
-            last_rl_data_info.next_value = 0
+            last_rl_data_info.next_value = np.zeros(5, dtype=np.float32)
+            # last_rl_data_info.next_value = 0
             last_rl_data_info.reward = reward
 
     # def save_value(self, value):
@@ -149,15 +152,31 @@ class SampleManager:
         for i in range(self.num_agents):
             reversed_keys = list(self.rl_data_map[i].keys())
             reversed_keys.reverse()
-            gae, last_gae = 0.0, 0.0
+            gae, last_gae = np.zeros(5, dtype=np.float32), \
+                            np.zeros(5, dtype=np.float32)
             for j in reversed_keys:
                 rl_info = self.rl_data_map[i][j]
                 delta = (
-                    -rl_info.value + rl_info.reward + self.gamma * rl_info.next_value
+                        -rl_info.value + rl_info.reward + self.gamma * rl_info.next_value
                 )
                 gae = gae * self.gamma * self.lamda + delta
-                rl_info.advantage = gae
-                rl_info.reward_sum = gae + rl_info.value
+
+                rl_info.advantage = gae[0]
+                rl_info.reward_sum = gae[1:] + rl_info.value[1:]
+                # print(f"DEBUG value: {rl_info.value}\nreward: {rl_info.reward}\nnext_value: {rl_info.next_value}")
+                # print(f"DEBUG GAE: {gae}\n")
+        # for i in range(self.num_agents):
+        #     reversed_keys = list(self.rl_data_map[i].keys())
+        #     reversed_keys.reverse()
+        #     gae, last_gae = 0.0, 0.0
+        #     for j in reversed_keys:
+        #         rl_info = self.rl_data_map[i][j]
+        #         delta = (
+        #             -rl_info.value + rl_info.reward + self.gamma * rl_info.next_value
+        #         )
+        #         gae = gae * self.gamma * self.lamda + delta
+        #         rl_info.advantage = gae
+        #         rl_info.reward_sum = gae + rl_info.value
 
     # data_keys = "vec_data,reward,advantage,label0,label1,label2,label3,label4,label5,prob0,prob1,prob2,prob3,prob4," \
     #             "prob5,weight0,weight1,weight2,weight3,weight4,weight5,is_train, lstm_cell, lstm_hidden_state"
@@ -167,12 +186,12 @@ class SampleManager:
         sample = np.zeros([np.prod(sample_batch.shape) + np.prod(sample_lstm.shape)])
         idx, s_idx = 0, 0
 
-        sample[-sample_lstm.shape[0] :] = sample_lstm
+        sample[-sample_lstm.shape[0]:] = sample_lstm
         for split_shape in self._data_shapes[:-2]:
             one_shape = split_shape[0] // self._LSTM_FRAME
-            sample[s_idx : s_idx + split_shape[0]] = sample_batch[
-                :, idx : idx + one_shape
-            ].reshape([-1])
+            sample[s_idx: s_idx + split_shape[0]] = sample_batch[
+                                                    :, idx: idx + one_shape
+                                                    ].reshape([-1])
             idx += one_shape
             s_idx += split_shape[0]
         return sample
@@ -198,24 +217,24 @@ class SampleManager:
                 idx, dlen = 0, 0
                 # vec_data
                 dlen = rl_info.feature.shape[0]
-                sample_batch[cnt, idx : idx + dlen] = rl_info.feature
+                sample_batch[cnt, idx: idx + dlen] = rl_info.feature
                 idx += dlen
 
                 # legal_action
                 dlen = rl_info.legal_action.shape[0]
-                sample_batch[cnt, idx : idx + dlen] = rl_info.legal_action
+                sample_batch[cnt, idx: idx + dlen] = rl_info.legal_action
                 idx += dlen
 
                 # reward_sum & advantage
                 # LOG.error("reward_sum {}, {}".format(rl_info.reward_sum, type(rl_info.reward_sum)))
-                sample_batch[cnt, idx] = rl_info.reward_sum
-                idx += 1
+                sample_batch[cnt, idx: idx + 4] = rl_info.reward_sum
+                idx += 4
                 sample_batch[cnt, idx] = rl_info.advantage
                 idx += 1
 
                 # labels
                 dlen = 6
-                sample_batch[cnt, idx : idx + dlen] = rl_info.action
+                sample_batch[cnt, idx: idx + dlen] = rl_info.action
                 idx += dlen
 
                 # probs (neg log pi->prob)
@@ -223,12 +242,12 @@ class SampleManager:
                     dlen = len(p)
                     # p = np.exp(-nlp)
                     # p = p / np.sum(p)
-                    sample_batch[cnt, idx : idx + dlen] = p
+                    sample_batch[cnt, idx: idx + dlen] = p
                     idx += dlen
 
                 # sub_action
                 dlen = 6
-                sample_batch[cnt, idx : idx + dlen] = rl_info.sub_action
+                sample_batch[cnt, idx: idx + dlen] = rl_info.sub_action
                 idx += dlen
 
                 # is_train

@@ -77,7 +77,7 @@ class Actor:
     }
 
     # def __init__(self, id, type):
-    def __init__(self, id, agents, max_episode: int = 0, env=None,gpu_ip="127.0.0.1"):
+    def __init__(self, id, agents, max_episode: int = 0, env=None, gpu_ip="127.0.0.1"):
         self.m_config_id = id
         self.m_task_uuid = Config.TASK_UUID
         self.m_episode_info = deque(maxlen=100)
@@ -146,9 +146,29 @@ class Actor:
                     if state_dict[i]["reward"] is not None:
                         if type(state_dict[i]["reward"]) == tuple:
                             # if reward is a vec
+                            reward = state_dict[i]["reward"]
+                            reward = np.array([
+                                # total_reward
+                                reward[-1],
+                                # reward_farming (exp, gold, mana)
+                                reward[2] * 0.006 + reward[7] * 0.006 + reward[1] * 0.75,
+                                # reward_kda (dead, kill, last_hit)
+                                reward[0] * (-1.0) + reward[4] * (-0.6) + reward[5] * 0.5,
+                                # reward_damage (hp)
+                                reward[3] * 2.0,
+                                # reward_pushing (tower_hp)
+                                reward[8] * 5.0
+                            ], dtype=np.float32)
+
+                            # if np.sum(reward[1:]) != reward[0]:
+                            #     print(f"DEBUG state dict reward: {state_dict[i]['reward']}\nrecon reward: {reward}")
+
                             sample_manager.save_last_sample(
-                                agent_id=i, reward=state_dict[i]["reward"][-1]
+                                agent_id=i, reward=reward
                             )
+                            # sample_manager.save_last_sample(
+                            #     agent_id=i, reward=state_dict[i]["reward"][-1]
+                            # )
                         else:
                             # if reward is a float number
                             sample_manager.save_last_sample(
@@ -248,7 +268,6 @@ class Actor:
             done = d[0] or d[1]
             if req_pb.gameover:
                 print("really gameover!!!")
-
             self._save_last_sample(done, eval, sample_manager, state_dict)
             log_time_func("one_frame", end=True)
 
@@ -277,18 +296,18 @@ class Actor:
             for hero_state in req_pbs[i].hero_list:
                 if agent.player_id == hero_state.runtime_id:
                     episode_infos[i]["money_per_frame"] = (
-                        hero_state.moneyCnt / game_info["length"]
+                            hero_state.moneyCnt / game_info["length"]
                     )
                     episode_infos[i]["kill"] = hero_state.killCnt
                     episode_infos[i]["death"] = hero_state.deadCnt
                     episode_infos[i]["hurt_per_frame"] = (
-                        hero_state.totalHurt / game_info["length"]
+                            hero_state.totalHurt / game_info["length"]
                     )
                     episode_infos[i]["hurtH_per_frame"] = (
-                        hero_state.totalHurtToHero / game_info["length"]
+                            hero_state.totalHurtToHero / game_info["length"]
                     )
                     episode_infos[i]["hurtBH_per_frame"] = (
-                        hero_state.totalBeHurtByHero / game_info["length"]
+                            hero_state.totalBeHurtByHero / game_info["length"]
                     )
                     episode_infos[i]["hero_id"] = self.HERO_DICT[env_config[0]["hero"]]
                     episode_infos[i]["totalHurtToHero"] = hero_state.totalHurtToHero
@@ -314,7 +333,7 @@ class Actor:
         )
 
     def _print_info(
-        self, game_id, game_info, episode_infos, eval, eval_info="", common_ai=None
+            self, game_id, game_info, episode_infos, eval, eval_info="", common_ai=None
     ):
         if common_ai is None:
             common_ai = [False] * len(self.agents)
@@ -422,7 +441,7 @@ class Actor:
             hero_name1 = camp1_heros[camp1_index]
             hero_name2 = camp2_heros[camp2_index]
             config_dicts = [
-                dict(self.ALL_CONFIG_DICT[hero_name1][0]), 
+                dict(self.ALL_CONFIG_DICT[hero_name1][0]),
                 dict(self.ALL_CONFIG_DICT[hero_name2][1]),
             ]
 
@@ -430,7 +449,7 @@ class Actor:
             if camp1_index % 5 == 0:
                 camp1_index = 0
                 camp2_index = (camp2_index + 1) % 5
-            
+
             print(config_dicts)
             try:
                 # provide a init eval value at the first episode
@@ -452,8 +471,8 @@ class Actor:
                     swap = not swap
                 else:
                     eval_with_common_ai = (
-                        self._episode_num + 0
-                    ) % Config.EVAL_FREQ == 0 and self.m_config_id == 0
+                                                  self._episode_num + 0
+                                          ) % Config.EVAL_FREQ == 0 and self.m_config_id == 0
                     self._run_episode(
                         config_dicts, eval_with_common_ai, load_models=load_models
                     )

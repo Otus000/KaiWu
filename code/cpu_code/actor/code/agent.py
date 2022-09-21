@@ -24,6 +24,9 @@ _G_MODEL_UPDATE_RATIO = 0.8
 
 def cvt_infer_list_to_numpy_list(infer_list):
     data_list = [infer.data for infer in infer_list]
+    # print(f"infer_list: {infer_list}")
+    # print(f"infer_list.data: {infer_list[0].data}")
+    # print(f"data_list: {data_list}")
     return data_list
 
 
@@ -219,6 +222,20 @@ class Agent:
             state_dict["reward"],
             state_dict["sub_action_mask"],
         )
+        # if len(reward[6]) > 0:
+        #     print(f"DEBUG reward: {reward}")
+        reward = np.array([
+            # total_reward
+            reward[-1],
+            # reward_farming (exp, gold, mana)
+            reward[2] * 0.006 + reward[7] * 0.006 + reward[1] * 0.75,
+            # reward_kda (dead, kill, last_hit)
+            reward[0] * (-1.0) + reward[4] * (-0.6) + reward[5] * 0.5,
+            # reward_damage (hp)
+            reward[3] * 2.0,
+            # reward_pushing (tower_hp)
+            reward[8] * 5.0
+        ], dtype=np.float64)
         done = False
         prob, value, action, _ = pred_ret
 
@@ -242,7 +259,7 @@ class Agent:
             feature_vec,
             legal_action,
             action,
-            reward[-1],
+            reward,
             value,
             prob,
             sub_action_mask,
@@ -304,7 +321,7 @@ class Agent:
                 "reward",
                 data=[[sample_dict["reward"]]],
                 compression="gzip",
-                maxshape=(None, 1),
+                maxshape=(None, 5),
                 chunks=True,
             )
             self.dataset.create_dataset(
