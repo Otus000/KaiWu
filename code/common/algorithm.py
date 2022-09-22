@@ -94,11 +94,13 @@ class Algorithm:
                 seri_vec, init_lstm_cell, init_lstm_hidden, only_inference=True
             )
             logits_list, value_list = (
-                fc_label_result_list[:-1],
-                fc_label_result_list[-1],
+                fc_label_result_list[:-4],
+                fc_label_result_list[-4:],
             )
             self.logits = tf.layers.flatten(tf.concat(logits_list, axis=1))
-            self.value = tf.layers.flatten(value_list[0])
+            print(f"DEBUG value_list: {value_list}")
+            self.value = tf.layers.flatten(tf.concat(value_list, axis=1))
+            print(f"DEBUG self.value: {self.value}")
             # self.init_saver = tf.train.Saver(tf.global_variables())
             self.init = tf.global_variables_initializer()
             # self.sess = tf.Session(config=config)
@@ -177,10 +179,10 @@ class Algorithm:
         loss = self._calculate_loss(
             label_list,
             old_label_probability_list,
-            fc_label_result_list[:-1],
+            fc_label_result_list[:-4],
             reward,
             advantage,
-            fc_label_result_list[-1],
+            fc_label_result_list[-4:],
             seri_vec,
             is_train,
             weight_list,
@@ -191,7 +193,9 @@ class Algorithm:
             "entropy_cost": self.entropy_cost,
             "policy_cost": self.policy_cost,
         }
-
+        print(f"DEBUG loss:{loss}\ninfo_list:{info_list}")
+        for k, v in info_list.items():
+            print(k, v.name, v.graph)
         return loss, info_list
 
     def get_optimizer(self):
@@ -263,7 +267,7 @@ class Algorithm:
         # self.value_cost = 0.5 * tf.reduce_mean(tf.square(new_advantage), axis=0)
         for i in range(0, 4):
             self.value_cost = 0.5 * tf.reduce_mean(
-                tf.square(reward[:, i] - fc2_value_result[:, i + 1]), axis=0
+                tf.square(reward[:, i] - tf.squeeze(fc2_value_result[i], axis=[1])), axis=0
             )
 
         # for entropy loss calculate
@@ -1101,19 +1105,22 @@ class Algorithm:
                 name="fc2_pushing_value_result",
             )
 
-        value_total = fc2_farming_value_result + \
-                      fc2_kda_value_result + \
-                      fc2_damage_value_result + \
-                      fc2_pushing_value_result
+        # value_total = fc2_farming_value_result + \
+        #               fc2_kda_value_result + \
+        #               fc2_damage_value_result + \
+        #               fc2_pushing_value_result
 
-        value_result = tf.concat([value_total,
-                                  fc2_farming_value_result,
-                                  fc2_kda_value_result,
-                                  fc2_damage_value_result,
-                                  fc2_pushing_value_result,
-                                  ], axis=-1, name="fc2_value_result")
+        value_result = [fc2_farming_value_result,
+                        fc2_kda_value_result,
+                        fc2_damage_value_result,
+                        fc2_pushing_value_result
+                        ]
 
-        result_list.append(value_result)
+        # result_list.append(value_result)
+        result_list.append(fc2_farming_value_result)
+        result_list.append(fc2_kda_value_result)
+        result_list.append(fc2_damage_value_result)
+        result_list.append(fc2_pushing_value_result)
         # print(f"result_list: {result_list}")
         return result_list
 

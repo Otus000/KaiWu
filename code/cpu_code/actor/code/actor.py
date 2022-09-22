@@ -149,7 +149,7 @@ class Actor:
                             reward = state_dict[i]["reward"]
                             reward = np.array([
                                 # total_reward
-                                reward[-1],
+                                # reward[-1],
                                 # reward_farming (exp, gold, mana)
                                 reward[2] * 0.006 + reward[7] * 0.006 + reward[1] * 0.75,
                                 # reward_kda (dead, kill, last_hit)

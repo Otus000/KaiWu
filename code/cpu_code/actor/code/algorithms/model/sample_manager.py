@@ -79,11 +79,12 @@ class SampleManager:
         """
         samples must saved by frame_no order
         """
-        # for i, r in enumerate(reward):
-        #     reward[i] = self._clip_reward(r)
-        # reward[0] = self._clip_reward(reward[0])
+        for i, r in enumerate(reward):
+            reward[i] = self._clip_reward(r)
         rl_data_info = RLDataInfo()
         # rl_data_info.game_id = struct.pack('%ss' % len(game_id), bytes(game_id, encoding='utf8'))
+
+        print(f"DEBUG 87 {value}")
 
         value = value.flatten()
         lstm_cell = lstm_cell.flatten()
@@ -129,7 +130,7 @@ class SampleManager:
         if len(self.rl_data_map[agent_id]) > 0:
             last_key = list(self.rl_data_map[agent_id].keys())[-1]
             last_rl_data_info = self.rl_data_map[agent_id][last_key]
-            last_rl_data_info.next_value = np.zeros(5, dtype=np.float32)
+            last_rl_data_info.next_value = np.zeros(4, dtype=np.float32)
             # last_rl_data_info.next_value = 0
             last_rl_data_info.reward = reward
 
@@ -152,8 +153,8 @@ class SampleManager:
         for i in range(self.num_agents):
             reversed_keys = list(self.rl_data_map[i].keys())
             reversed_keys.reverse()
-            gae, last_gae = np.zeros(5, dtype=np.float32), \
-                            np.zeros(5, dtype=np.float32)
+            gae, last_gae = np.zeros(4, dtype=np.float32), \
+                            np.zeros(4, dtype=np.float32)
             for j in reversed_keys:
                 rl_info = self.rl_data_map[i][j]
                 delta = (
@@ -161,8 +162,8 @@ class SampleManager:
                 )
                 gae = gae * self.gamma * self.lamda + delta
 
-                rl_info.advantage = gae[0]
-                rl_info.reward_sum = gae[1:] + rl_info.value[1:]
+                rl_info.advantage = np.sum(gae)
+                rl_info.reward_sum = gae + rl_info.value
                 # print(f"DEBUG value: {rl_info.value}\nreward: {rl_info.reward}\nnext_value: {rl_info.next_value}")
                 # print(f"DEBUG GAE: {gae}\n")
         # for i in range(self.num_agents):

@@ -26,7 +26,11 @@ class ModelConfig:
     LSTM_UNIT_SIZE = 512
     DATA_SPLIT_SHAPE = [
         809,    # seri_vec (feature, leagl_action)
-        4,      # reward
+        # 4,      # reward
+        1,      # reward
+        1,
+        1,
+        1,
         1,      # advantage
         1,      # label
         1,
@@ -85,7 +89,11 @@ class ModelConfig:
     )
     data_shapes = [
         [12944],    # seri_vec (feature, legal action)
-        [64],       # reward #  16 * 4
+        # [64],       # reward #  16 * 4
+        [16],       # reward
+        [16],
+        [16],
+        [16],
         [16],       # advantage
         [16],       # label_list
         [16],
