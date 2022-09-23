@@ -151,13 +151,13 @@ class Actor:
                                 # total_reward
                                 # reward[-1],
                                 # reward_farming (exp, gold, mana)
-                                reward[2] * 0.006 + reward[7] * 0.006 + reward[1] * 0.75,
+                                reward[2] * 0.006 + reward[-3] * 0.006 + reward[1] * 0.75,
                                 # reward_kda (dead, kill, last_hit)
                                 reward[0] * (-1.0) + reward[4] * (-0.6) + reward[5] * 0.5,
                                 # reward_damage (hp)
                                 reward[3] * 2.0,
                                 # reward_pushing (tower_hp)
-                                reward[8] * 5.0
+                                reward[-2] * 5.0
                             ], dtype=np.float32)
 
                             # if np.sum(reward[1:]) != reward[0]:

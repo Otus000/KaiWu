@@ -98,14 +98,13 @@ class Algorithm:
                 fc_label_result_list[-4:],
             )
             self.logits = tf.layers.flatten(tf.concat(logits_list, axis=1))
-            print(f"DEBUG value_list: {value_list}")
             self.value = tf.layers.flatten(tf.concat(value_list, axis=1))
-            print(f"DEBUG self.value: {self.value}")
             # self.init_saver = tf.train.Saver(tf.global_variables())
             self.init = tf.global_variables_initializer()
             # self.sess = tf.Session(config=config)
             # self.sess.run(tf.global_variables_initializer())
-        return self.graph
+
+            return self.graph
 
     def build_graph(self, datas, update):
         # add split datas
@@ -117,19 +116,20 @@ class Algorithm:
         seri_vec = data_list[0]
         seri_vec = tf.reshape(seri_vec, [-1, self.data_split_shape[0]])
 
-        reward = data_list[1]
-        reward = tf.reshape(reward, [-1, self.data_split_shape[1]])
+        reward = data_list[1: 5]
+        # reward = tf.reshape(reward, [-1, self.data_split_shape[1]])
+        reward = [tf.reshape(r, [-1, self.data_split_shape[1]]) for r in reward]
 
-        advantage = data_list[2]
-        advantage = tf.reshape(advantage, [-1, self.data_split_shape[2]])
+        advantage = data_list[5]
+        advantage = tf.reshape(advantage, [-1, self.data_split_shape[5]])
 
-        label_list = data_list[3: 3 + len(self.label_size_list)]
+        label_list = data_list[6: 6 + len(self.label_size_list)]
         for shape_index in range(len(self.label_size_list)):
             # label_list[shape_index] = tf.cast(label_list,dtype=tf.int32)
             label_list[shape_index] = tf.cast(
                 tf.reshape(
                     label_list[shape_index],
-                    [-1, self.data_split_shape[3 + shape_index]],
+                    [-1, self.data_split_shape[6 + shape_index]],
                 ),
                 dtype=tf.int32,
             )
@@ -139,19 +139,19 @@ class Algorithm:
             squeeze_label_list.append(tf.squeeze(ele, axis=[1]))
 
         old_label_probability_list = data_list[
-                                     3 + len(self.label_size_list): 3 + 2 * len(self.label_size_list)
+                                     6 + len(self.label_size_list): 6 + 2 * len(self.label_size_list)
                                      ]
         for shape_index in range(len(self.label_size_list)):
             old_label_probability_list[shape_index] = tf.reshape(
                 old_label_probability_list[shape_index],
                 [
                     -1,
-                    self.data_split_shape[3 + len(self.label_size_list) + shape_index],
+                    self.data_split_shape[6 + len(self.label_size_list) + shape_index],
                 ],
             )
 
         weight_list = data_list[
-                      3 + 2 * len(self.label_size_list): 3 + 3 * len(self.label_size_list)
+                      6 + 2 * len(self.label_size_list): 6 + 3 * len(self.label_size_list)
                       ]
         for shape_index in range(len(self.label_size_list)):
             weight_list[shape_index] = tf.reshape(
@@ -159,7 +159,7 @@ class Algorithm:
                 [
                     -1,
                     self.data_split_shape[
-                        3 + 2 * len(self.label_size_list) + shape_index
+                        6 + 2 * len(self.label_size_list) + shape_index
                         ],
                 ],
             )
@@ -193,9 +193,7 @@ class Algorithm:
             "entropy_cost": self.entropy_cost,
             "policy_cost": self.policy_cost,
         }
-        print(f"DEBUG loss:{loss}\ninfo_list:{info_list}")
-        for k, v in info_list.items():
-            print(k, v.name, v.graph)
+
         return loss, info_list
 
     def get_optimizer(self):
@@ -209,7 +207,7 @@ class Algorithm:
             unsqueeze_frame_is_train,
             unsqueeze_weight_list,
     ):
-        # reward = tf.squeeze(unsqueeze_reward, axis=[1])
+        reward = [tf.squeeze(r, axis=[1]) for r in unsqueeze_reward]
         advantage = tf.squeeze(unsqueeze_advantage, axis=[1])
         label_list = []
         for ele in unsqueeze_label_list:
@@ -218,7 +216,7 @@ class Algorithm:
         for weight in unsqueeze_weight_list:
             weight_list.append(tf.squeeze(weight, axis=[1]))
         frame_is_train = tf.squeeze(unsqueeze_frame_is_train, axis=[1])
-        return unsqueeze_reward, advantage, label_list, frame_is_train, weight_list
+        return reward, advantage, label_list, frame_is_train, weight_list
 
     def _calculate_loss(
             self,
@@ -265,9 +263,11 @@ class Algorithm:
         # )
         # new_advantage = reward - fc2_value_result_squeezed
         # self.value_cost = 0.5 * tf.reduce_mean(tf.square(new_advantage), axis=0)
+        self.value_cost = tf.constant(0.0, dtype=tf.float32)
+        fc2_value_result_squeezed = [tf.squeeze(v, axis=[1]) for v in fc2_value_result]
         for i in range(0, 4):
-            self.value_cost = 0.5 * tf.reduce_mean(
-                tf.square(reward[:, i] - tf.squeeze(fc2_value_result[i], axis=[1])), axis=0
+            self.value_cost += 0.5 * tf.reduce_mean(
+                tf.square(reward[i] - fc2_value_result_squeezed[i]), axis=0
             )
 
         # for entropy loss calculate
@@ -1029,6 +1029,7 @@ class Algorithm:
                 fc2_farming_value_bias,
                 name="fc2_farming_value_result",
             )
+            result_list.append(fc2_farming_value_result)
 
         # KDA related: the number of kill and death (kill, death, last_hit)
         with tf.variable_scope("fc1_kda_value"):
@@ -1054,6 +1055,7 @@ class Algorithm:
                 fc2_kda_value_bias,
                 name="fc2_kda_value_result",
             )
+            result_list.append(fc2_kda_value_result)
 
         # Damage related: a dense reward - the number of health point(hp_point)
         with tf.variable_scope("fc1_damage_value"):
@@ -1079,6 +1081,7 @@ class Algorithm:
                 fc2_damage_value_bias,
                 name="fc2_damage_value_result",
             )
+            result_list.append(fc2_damage_value_result)
 
         # Pushing related: the amount of attack to enemy turrets and crystal(tower_hp_point)
         with tf.variable_scope("fc1_pushing_value"):
@@ -1104,24 +1107,24 @@ class Algorithm:
                 fc2_pushing_value_bias,
                 name="fc2_pushing_value_result",
             )
+            result_list.append(fc2_pushing_value_result)
 
         # value_total = fc2_farming_value_result + \
         #               fc2_kda_value_result + \
         #               fc2_damage_value_result + \
         #               fc2_pushing_value_result
 
-        value_result = [fc2_farming_value_result,
-                        fc2_kda_value_result,
-                        fc2_damage_value_result,
-                        fc2_pushing_value_result
-                        ]
-
+        # value_result = [fc2_farming_value_result,
+        #                 fc2_kda_value_result,
+        #                 fc2_damage_value_result,
+        #                 fc2_pushing_value_result
+        #                 ]
+        # value_result = tf.concat([fc2_farming_value_result,
+        #                           fc2_kda_value_result,
+        #                           fc2_damage_value_result,
+        #                           fc2_pushing_value_result
+        #                           ], axis=-1)
         # result_list.append(value_result)
-        result_list.append(fc2_farming_value_result)
-        result_list.append(fc2_kda_value_result)
-        result_list.append(fc2_damage_value_result)
-        result_list.append(fc2_pushing_value_result)
-        # print(f"result_list: {result_list}")
         return result_list
 
     def _fc_weight_variable(self, shape, name, trainable=True):

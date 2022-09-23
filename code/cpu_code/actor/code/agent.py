@@ -228,13 +228,13 @@ class Agent:
             # total_reward
             # reward[-1],
             # reward_farming (exp, gold, mana)
-            reward[2] * 0.006 + reward[7] * 0.006 + reward[1] * 0.75,
+            reward[2] * 0.006 + reward[-3] * 0.006 + reward[1] * 0.75,
             # reward_kda (dead, kill, last_hit)
             reward[0] * (-1.0) + reward[4] * (-0.6) + reward[5] * 0.5,
             # reward_damage (hp)
             reward[3] * 2.0,
             # reward_pushing (tower_hp)
-            reward[8] * 5.0
+            reward[-2] * 5.0
         ], dtype=np.float64)
         done = False
         prob, value, action, _ = pred_ret
@@ -321,7 +321,7 @@ class Agent:
                 "reward",
                 data=[[sample_dict["reward"]]],
                 compression="gzip",
-                maxshape=(None, 5),
+                maxshape=(None, 4),
                 chunks=True,
             )
             self.dataset.create_dataset(
@@ -364,8 +364,6 @@ class Agent:
         np_output = cvt_infer_list_to_numpy_list(output_list)
 
         logits, value, self.lstm_cell, self.lstm_hidden = np_output[:4]
-
-        print(f"DEBUG {value}")
 
         prob, action, d_action = self._sample_masked_action(logits, legal_action)
 

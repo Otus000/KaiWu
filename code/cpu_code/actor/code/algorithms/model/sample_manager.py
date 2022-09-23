@@ -83,9 +83,6 @@ class SampleManager:
             reward[i] = self._clip_reward(r)
         rl_data_info = RLDataInfo()
         # rl_data_info.game_id = struct.pack('%ss' % len(game_id), bytes(game_id, encoding='utf8'))
-
-        print(f"DEBUG 87 {value}")
-
         value = value.flatten()
         lstm_cell = lstm_cell.flatten()
         lstm_hidden = lstm_hidden.flatten()
@@ -157,6 +154,9 @@ class SampleManager:
                             np.zeros(4, dtype=np.float32)
             for j in reversed_keys:
                 rl_info = self.rl_data_map[i][j]
+                # print(f"DEBUG rl_data_info.value {rl_info.value}")
+                # print(f"DEBUG rl_data_info.reward {rl_info.reward}")
+                # print(f"DEBUG rl_data_info.next_value {rl_info.next_value}")
                 delta = (
                         -rl_info.value + rl_info.reward + self.gamma * rl_info.next_value
                 )
