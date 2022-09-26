@@ -14,6 +14,7 @@ from framework.common.common_log import CommonLogger
 from framework.common.common_log import g_log_time
 from framework.common.common_func import log_time_func
 from rl_framework.monitor import InfluxdbMonitorHandler
+from sac import SoftActorCritic
 
 IS_TRAIN = Config.IS_TRAIN
 LOG = CommonLogger.get_logger()
@@ -178,7 +179,7 @@ class Actor:
         render = self.render if eval else None
         # restart a new game
         # reward :[dead,ep_rate,exp,hp_point,kill,last_hit,money,tower_hp_point,reward_sum]
-        _, r, d, state_dict = self.env.reset(
+        next_state_sac, r, d, state_dict = self.env.reset(
             env_config, use_common_ai=use_common_ai, eval=eval, render=render
         )
         if state_dict[0] is None:
@@ -201,10 +202,12 @@ class Actor:
         game_info = {}
         episode_infos = [{"h_act_num": 0} for _ in self.agents]
 
+
         while not done:
             log_time_func("one_frame")
             # while True:
             actions = []
+            
             log_time_func("agent_process")
             for i, agent in enumerate(self.agents):
                 if use_common_ai[i]:
@@ -212,7 +215,10 @@ class Actor:
                     rewards[i].append(0.0)
                     continue
                 # print("agent{}".format(i),state_dict[i]['observation'])
+                # action, d_action, sample = agent.process(state_dict[i]['observation'])
                 action, d_action, sample = agent.process(state_dict[i])
+                # LOG.info("state_dict[i]")
+                # LOG.info(state_dict[i])
                 if eval:
                     action = d_action
                 # print("input act: [{}], {}, {}".format(i, action, state_dict[i]["legal_action"][:12]))
@@ -228,8 +234,16 @@ class Actor:
             log_time_func("agent_process", end=True)
 
             log_time_func("step")
+
+            old_state_dict = state_dict
+
             # reward :[dead,ep_rate,exp,hp_point,kill,last_hit,money,tower_hp_point,reward_sum]
-            _, r, d, state_dict = self.env.step(actions)
+            obs_sac , r, d, state_dict = self.env.step(actions)
+
+            #for i, agent in enumerate(self.agents):
+            #    agent.save_memory(old_state_dict[i], action, reward, state_dict[i] , done)
+
+
             # if np.isnan(r[0][-1]) or np.isnan(r[1][-1]):
             #     exit(0)
             log_time_func("step", end=True)
@@ -253,6 +267,9 @@ class Actor:
             log_time_func("one_frame", end=True)
 
         self.env.close_game()
+
+        # sac update
+        # Q1_loss, Q2_loss, policy_loss, value_loss = agent.update_weights(1024)
 
         game_info["length"] = req_pb.frame_no
         loss_camp = -1

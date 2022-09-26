@@ -16,6 +16,10 @@ if [[ $USE_GPU == false  &&  `pip list |grep -c tensorflow ` -eq 2 ]];then
     pip install tensorflow-1.14.0-cp36-cp36m-manylinux1_x86_64.whl
 fi
 
+# cd是命令行语法。那我也用命令行语法执行pip试试
+pip install matplotlib -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+
 rm -rf /code/logs
 mkdir -p /code/logs/start_log
 

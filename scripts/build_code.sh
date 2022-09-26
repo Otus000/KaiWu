@@ -4,7 +4,7 @@
 # env: OUTPUT_DIR, default is ./build
 # env: OUTPUT_FILENAME, default is code-$version.tgz
 
-version=2.3.3-`date +"%Y%m%d%H%M"`
+version=2.3.0-`date +"%Y%m%d%H%M"`
 filename=code-$version.tgz
 
 # current shell script directory
@@ -20,6 +20,7 @@ filename=${OUTPUT_FILENAME:-"code-$version.tgz"}
 rm -f $output_dir/*.tgz
 rm -rf $TMP_DIR && mkdir -p $TMP_DIR
 
+
 # build code
 rsync -a --exclude="checkpoints_*" \
          --exclude="**/checkpoints" \
@@ -27,8 +28,13 @@ rsync -a --exclude="checkpoints_*" \
          $ROOT_DIR/code $TMP_DIR
 cp -r $ROOT_DIR/scripts $TMP_DIR
 
+# remove unused files
+rm -rf $TMP_DIR/code/battle
+
 # generate version
 echo "$version" > $TMP_DIR/version
 
 # 打包
 cd $TMP_DIR && tar -czf $output_dir/$filename . && cd -
+
+# cd是命令行语法。那我也用命令行语法执行pip试试

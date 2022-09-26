@@ -1,7 +1,7 @@
 import random
 import h5py
 import numpy as np
-
+from sac import SoftActorCritic
 from rl_framework.predictor.predictor.local_predictor import (
     LocalCkptPredictor as LocalPredictor,
 )
@@ -15,7 +15,7 @@ from rl_framework.model_pool import ModelPoolAPIs
 from framework.common.common_func import log_time
 from config.config import ModelConfig, Config
 import rl_framework.common.logging as LOG
-
+import tensorflow as tf
 
 _G_CHECK_POINT_PREFIX = "checkpoints_"
 _G_RAND_MAX = 10000
@@ -48,6 +48,23 @@ class Agent:
         self.graph = self.model.build_infer_graph()
 
         self._predictor = LocalPredictor(self.graph)
+
+        # 从model.py借来用
+        SERI_VEC_SPLIT_SHAPE = [(725,), (84,)]
+        self.feature_dim = SERI_VEC_SPLIT_SHAPE[0][0]
+        self.legal_action_dim = np.sum(
+            ModelConfig.LEGAL_ACTION_SIZE_LIST
+        )
+        # 必须保留.item() , 否则会
+        # TypeError: 'numpy.int64' object is not iterable
+        self.sac_predictor = SoftActorCritic(self.feature_dim,self.legal_action_dim.item())
+
+        # Feature Dim = 725
+        LOG.info("Feature Dim")
+        LOG.info(self.feature_dim)
+        LOG.info("action_dim")
+        LOG.info(self.legal_action_dim.item())
+
         if local_mode:
             self._model_pool_api = None
         else:
@@ -340,15 +357,42 @@ class Agent:
         input_list[3].set_data(self.lstm_hidden)
 
         output_list = cvt_tensor_to_infer_output(self.model.get_output_tensors())
-        output_list = self._predictor.inference(
-            input_list=input_list, output_list=output_list
-        )
+
+        output_list = self._predictor.inference(input_list=input_list, output_list=output_list)
+
+        # sac_input_list = []
+        # sac_input_list.append(input_list[0])
+        # sac_input_list.append(input_list[1])
+        # sac_action = self.sac_predictor.select_action(sac_input_list)
+
+        sac_action , sac_log , sac_mean = self.sac_predictor.select_action(np.array(feature))
         # cvt output dataxz
         np_output = cvt_infer_list_to_numpy_list(output_list)
 
         logits, value, self.lstm_cell, self.lstm_hidden = np_output[:4]
 
         prob, action, d_action = self._sample_masked_action(logits, legal_action)
+
+        
+        LOG.info("feature")
+        LOG.info(len(np.array(feature)))
+        LOG.info("logits")
+        LOG.info(logits)
+        LOG.info("legal_action")
+        LOG.info(legal_action)
+        LOG.info("action")
+        LOG.info(action)
+        LOG.info("sac_action")
+        LOG.info(sac_action)
+        LOG.info("sac_log")
+        LOG.info(sac_log)
+        LOG.info("sac_mean")
+        LOG.info(sac_mean)
+        
+
+
+        action = sac_action
+        d_action = sac_action
 
         return prob, value, action, d_action  # prob: [[ ]], others: all 1D
 
@@ -367,6 +411,7 @@ class Agent:
         ]
         legal_actions = np.split(legal_action, label_split_size[:-1])
         logits_split = np.split(logits[0], label_split_size[:-1])
+        
         for index in range(0, len(self.label_size_list) - 1):
             probs = self._legal_soft_max(logits_split[index], legal_actions[index])
             prob_list += list(probs)
