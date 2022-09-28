@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import tensorflow as tf
 from common_config import DimConfig
@@ -190,10 +192,15 @@ class Algorithm:
         info_list = {
             "loss": loss,
             "value_cost": self.value_cost,
+            "farming_value_cost": self.farming_value_cost,
+            "kda_value_cost": self.kda_value_cost,
+            "damage_value_cost": self.damage_value_cost,
+            "pushing_value_cost": self.pushing_value_cost,
             "entropy_cost": self.entropy_cost,
             "policy_cost": self.policy_cost,
         }
-
+        logging.info(f"farming_value_cost: {self.farming_value_cost}, kda_value_cost: {self.kda_value_cost}, "
+                     f"damage_value_cost: {self.damage_value_cost}, pushing_value_cost: {self.pushing_value_cost}")
         return loss, info_list
 
     def get_optimizer(self):
@@ -263,12 +270,27 @@ class Algorithm:
         # )
         # new_advantage = reward - fc2_value_result_squeezed
         # self.value_cost = 0.5 * tf.reduce_mean(tf.square(new_advantage), axis=0)
+
         self.value_cost = tf.constant(0.0, dtype=tf.float32)
         fc2_value_result_squeezed = [tf.squeeze(v, axis=[1]) for v in fc2_value_result]
-        for i in range(0, 4):
-            self.value_cost += 0.5 * tf.reduce_mean(
-                tf.square(reward[i] - fc2_value_result_squeezed[i]), axis=0
-            )
+
+        self.farming_value_cost = 0.5 * tf.reduce_mean(
+            tf.square(reward[0] - fc2_value_result_squeezed[0]), axis=0
+        )
+        self.kda_value_cost = 0.5 * tf.reduce_mean(
+            tf.square(reward[1] - fc2_value_result_squeezed[1]), axis=0
+        )
+        self.damage_value_cost = 0.5 * tf.reduce_mean(
+            tf.square(reward[2] - fc2_value_result_squeezed[2]), axis=0
+        )
+        self.pushing_value_cost = 0.5 * tf.reduce_mean(
+            tf.square(reward[3] - fc2_value_result_squeezed[3]), axis=0
+        )
+        # for i in range(0, 4):
+        #     self.value_cost += 0.5 * tf.reduce_mean(
+        #         tf.square(reward[i] - fc2_value_result_squeezed[i]), axis=0
+        #     )
+        self.value_cost = self.farming_value_cost + self.kda_value_cost + self.damage_value_cost + self.pushing_value_cost
 
         # for entropy loss calculate
         label_logits_subtract_max_list = []
@@ -327,8 +349,14 @@ class Algorithm:
                         )
                         * advantage
                 )
+                # temp_policy_loss = -tf.reduce_sum(
+                #     tf.to_float(weight_list[task_index]) * tf.minimum(surr1, surr2)
+                # ) / tf.maximum(tf.reduce_sum(tf.to_float(weight_list[task_index])), 1.0)
+                # dual-clip PPO
+                clip = tf.minimum(surr1, surr2)
+                clip = tf.where(tf.math.less(advantage, 0), tf.maximum(clip, 3.0 * advantage), clip)
                 temp_policy_loss = -tf.reduce_sum(
-                    tf.to_float(weight_list[task_index]) * tf.minimum(surr1, surr2)
+                    tf.to_float(weight_list[task_index]) * clip
                 ) / tf.maximum(tf.reduce_sum(tf.to_float(weight_list[task_index])), 1.0)
                 self.policy_cost = self.policy_cost + temp_policy_loss
         # cross entropy loss
@@ -1006,7 +1034,7 @@ class Algorithm:
         #     result_list.append(fc2_value_result)
 
         # Farming related: the amount of gold and experience (money (gold)、 exp、 ep_rate)
-        with tf.variable_scope("fc1_farming_value"):
+        with tf.variable_scope("farming_value"):
             fc1_farming_value_weight = self._fc_weight_variable(
                 shape=[self.lstm_unit_size, 64], name="fc1_farming_value_weight"
             )
@@ -1019,20 +1047,32 @@ class Algorithm:
                 name="fc1_farming_value_result",
             )
 
-        with tf.variable_scope("fc2_farming_value"):
             fc2_farming_value_weight = self._fc_weight_variable(
-                shape=[64, 1], name="fc2_farming_value_weight"
+                shape=[64, 32], name="fc2_farming_value_weight"
             )
-            fc2_farming_value_bias = self._bias_variable(shape=[1], name="fc2_farming_value_bias")
-            fc2_farming_value_result = tf.add(
-                tf.matmul(fc1_farming_value_result, fc2_farming_value_weight),
-                fc2_farming_value_bias,
+            fc2_farming_value_bias = self._bias_variable(shape=[32], name="fc2_farming_value_bias")
+            fc2_farming_value_result = tf.nn.relu(
+                (
+                        tf.matmul(fc1_farming_value_result, fc2_farming_value_weight)
+                        + fc2_farming_value_bias
+                ),
                 name="fc2_farming_value_result",
             )
-            result_list.append(fc2_farming_value_result)
+
+            fc3_farming_value_weight = self._fc_weight_variable(
+                shape=[32, 1], name="fc3_farming_value_weight"
+            )
+            fc3_farming_value_bias = self._bias_variable(shape=[1], name="fc3_farming_value_bias")
+            fc3_farming_value_result = tf.add(
+                tf.matmul(fc2_farming_value_result, fc3_farming_value_weight),
+                fc3_farming_value_bias,
+                name="fc3_farming_value_result",
+            )
+            fc3_farming_value_result = 3 * fc3_farming_value_result
+            result_list.append(fc3_farming_value_result)
 
         # KDA related: the number of kill and death (kill, death, last_hit)
-        with tf.variable_scope("fc1_kda_value"):
+        with tf.variable_scope("kda_value"):
             fc1_kda_value_weight = self._fc_weight_variable(
                 shape=[self.lstm_unit_size, 64], name="fc1_kda_value_weight"
             )
@@ -1045,7 +1085,6 @@ class Algorithm:
                 name="fc1_kda_value_result",
             )
 
-        with tf.variable_scope("fc2_kda_value"):
             fc2_kda_value_weight = self._fc_weight_variable(
                 shape=[64, 1], name="fc2_kda_value_weight"
             )
@@ -1057,8 +1096,31 @@ class Algorithm:
             )
             result_list.append(fc2_kda_value_result)
 
+            # fc2_kda_value_weight = self._fc_weight_variable(
+            #     shape=[64, 16], name="fc2_kda_value_weight"
+            # )
+            # fc2_kda_value_bias = self._bias_variable(shape=[16], name="fc2_kda_value_bias")
+            # fc2_kda_value_result = tf.nn.relu(
+            #     (
+            #             tf.matmul(fc1_kda_value_result, fc2_kda_value_weight)
+            #             + fc2_kda_value_bias
+            #     ),
+            #     name="fc2_kda_value_result",
+            # )
+            #
+            # fc3_kda_value_weight = self._fc_weight_variable(
+            #     shape=[16, 1], name="fc3_kda_value_weight"
+            # )
+            # fc3_kda_value_bias = self._bias_variable(shape=[1], name="fc3_kda_value_bias")
+            # fc3_kda_value_result = tf.add(
+            #     tf.matmul(fc2_kda_value_result, fc3_kda_value_weight),
+            #     fc3_kda_value_bias,
+            #     name="fc3_kda_value_result",
+            # )
+            # result_list.append(fc3_kda_value_result)
+
         # Damage related: a dense reward - the number of health point(hp_point)
-        with tf.variable_scope("fc1_damage_value"):
+        with tf.variable_scope("damage_value"):
             fc1_damage_value_weight = self._fc_weight_variable(
                 shape=[self.lstm_unit_size, 64], name="fc1_damage_value_weight"
             )
@@ -1071,7 +1133,6 @@ class Algorithm:
                 name="fc1_damage_value_result",
             )
 
-        with tf.variable_scope("fc2_damage_value"):
             fc2_damage_value_weight = self._fc_weight_variable(
                 shape=[64, 1], name="fc2_damage_value_weight"
             )
@@ -1084,7 +1145,7 @@ class Algorithm:
             result_list.append(fc2_damage_value_result)
 
         # Pushing related: the amount of attack to enemy turrets and crystal(tower_hp_point)
-        with tf.variable_scope("fc1_pushing_value"):
+        with tf.variable_scope("pushing_value"):
             fc1_pushing_value_weight = self._fc_weight_variable(
                 shape=[self.lstm_unit_size, 64], name="fc1_pushing_value_weight"
             )
@@ -1097,7 +1158,6 @@ class Algorithm:
                 name="fc1_pushing_value_result",
             )
 
-        with tf.variable_scope("fc2_pushing_value"):
             fc2_pushing_value_weight = self._fc_weight_variable(
                 shape=[64, 1], name="fc2_pushing_value_weight"
             )

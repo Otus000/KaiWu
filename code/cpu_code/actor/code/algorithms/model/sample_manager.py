@@ -11,6 +11,40 @@ from rl_framework.mem_pool import MemPoolAPIs
 
 LOG = CommonLogger.get_logger()
 
+class RunningMeanStd(object):
+    def __init__(self, epsilon=1e-4, shape=()):
+        """
+                Calulates the running mean and std of a data stream
+                https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
+
+                :param epsilon: helps with arithmetic issues
+                :param shape: the shape of the data stream's output
+                """
+        self.mean = np.zeros(shape, 'float32')
+        self.var = np.ones(shape, 'float32')
+        self.count = epsilon
+
+    def update(self, x):
+        batch_mean = np.mean(x, axis=0)
+        batch_var = np.var(x, axis=0)
+        batch_count = x.shape[0]
+        self.update_from_moments(batch_mean, batch_var, batch_count)
+
+    def update_from_moments(self, batch_mean, batch_var, batch_count):
+        delta = batch_mean - self.mean
+        tot_count = self.count + batch_count
+
+        new_mean = self.mean + delta * batch_count / tot_count
+        m_a = self.var * self.count
+        m_b = batch_var * batch_count
+        M2 = m_a + m_b + np.square(delta) * self.count * batch_count / (self.count + batch_count)
+        new_var = M2 / (self.count + batch_count)
+
+        new_count = batch_count + self.count
+
+        self.mean = new_mean
+        self.var = new_var
+        self.count = new_count
 
 class SampleManager:
     def __init__(
@@ -49,6 +83,7 @@ class SampleManager:
         self.lamda = Config.LAMDA
 
         # self.sample_parse_lib = interface.SampleParse()
+        self.rms_reward = None
 
     def reset(self, agents, game_id):
         self.m_game_id = game_id
@@ -56,6 +91,8 @@ class SampleManager:
         self.num_agents = len(agents)
         self.rl_data_map = [collections.OrderedDict() for _ in range(self.num_agents)]
         self.m_replay_buffer = [[] for _ in range(self.num_agents)]
+        # self.rms_reward = [RunningMeanStd() for _ in self.agents]
+
 
     @log_time("save_sample")
     def save_sample(
@@ -79,6 +116,9 @@ class SampleManager:
         """
         samples must saved by frame_no order
         """
+        # total_reward = np.sum(reward)
+        # self.rms_reward.update_from_moments(total_reward, total_reward, 1)
+        # reward = reward / (self.rms_reward.var + 1e-8)
         for i, r in enumerate(reward):
             reward[i] = self._clip_reward(r)
         rl_data_info = RLDataInfo()
