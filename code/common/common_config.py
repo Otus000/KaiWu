@@ -32,6 +32,10 @@ class ModelConfig:
         1,
         1,
         1,      # advantage
+        1,      # old_value
+        1,
+        1,
+        1,
         1,      # label
         1,
         1,
@@ -95,6 +99,10 @@ class ModelConfig:
         [16],
         [16],
         [16],       # advantage
+        [16],       # old_value
+        [16],
+        [16],
+        [16],
         [16],       # label_list
         [16],
         [16],
@@ -130,7 +138,7 @@ class ModelConfig:
 
 
 class Config:
-    slow_time = 0.025
+    slow_time = 0.035
     TRAIN_MODE = 0
     EVAL_MODE = 1
     BATTLE_MODE = 2

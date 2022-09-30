@@ -125,13 +125,16 @@ class Algorithm:
         advantage = data_list[5]
         advantage = tf.reshape(advantage, [-1, self.data_split_shape[5]])
 
-        label_list = data_list[6: 6 + len(self.label_size_list)]
+        old_values = data_list[6:10]
+        old_values = [tf.reshape(r, [-1, self.data_split_shape[6]]) for r in reward]
+
+        label_list = data_list[10: 10 + len(self.label_size_list)]
         for shape_index in range(len(self.label_size_list)):
             # label_list[shape_index] = tf.cast(label_list,dtype=tf.int32)
             label_list[shape_index] = tf.cast(
                 tf.reshape(
                     label_list[shape_index],
-                    [-1, self.data_split_shape[6 + shape_index]],
+                    [-1, self.data_split_shape[10 + shape_index]],
                 ),
                 dtype=tf.int32,
             )
@@ -141,19 +144,19 @@ class Algorithm:
             squeeze_label_list.append(tf.squeeze(ele, axis=[1]))
 
         old_label_probability_list = data_list[
-                                     6 + len(self.label_size_list): 6 + 2 * len(self.label_size_list)
+                                     10 + len(self.label_size_list): 10 + 2 * len(self.label_size_list)
                                      ]
         for shape_index in range(len(self.label_size_list)):
             old_label_probability_list[shape_index] = tf.reshape(
                 old_label_probability_list[shape_index],
                 [
                     -1,
-                    self.data_split_shape[6 + len(self.label_size_list) + shape_index],
+                    self.data_split_shape[10 + len(self.label_size_list) + shape_index],
                 ],
             )
 
         weight_list = data_list[
-                      6 + 2 * len(self.label_size_list): 6 + 3 * len(self.label_size_list)
+                      10 + 2 * len(self.label_size_list): 10 + 3 * len(self.label_size_list)
                       ]
         for shape_index in range(len(self.label_size_list)):
             weight_list[shape_index] = tf.reshape(
@@ -161,7 +164,7 @@ class Algorithm:
                 [
                     -1,
                     self.data_split_shape[
-                        6 + 2 * len(self.label_size_list) + shape_index
+                        10 + 2 * len(self.label_size_list) + shape_index
                         ],
                 ],
             )
@@ -184,11 +187,17 @@ class Algorithm:
             fc_label_result_list[:-4],
             reward,
             advantage,
+            old_values,
             fc_label_result_list[-4:],
             seri_vec,
             is_train,
             weight_list,
         )
+        # for p in tf.trainable_variables():
+        #     print(f"DEBUG {p}")
+        # gradvars = self.get_optimizer().compute_gradients(loss)
+        # for gv in gradvars:
+        #     print(f"DEBUG {gv}")
         info_list = {
             "loss": loss,
             "value_cost": self.value_cost,
@@ -232,6 +241,7 @@ class Algorithm:
             fc2_label_list,
             unsqueeze_reward,
             unsqueeze_advantage,
+            old_values,
             fc2_value_result,
             seri_vec,
             unsqueeze_is_train,
@@ -272,20 +282,35 @@ class Algorithm:
         # self.value_cost = 0.5 * tf.reduce_mean(tf.square(new_advantage), axis=0)
 
         self.value_cost = tf.constant(0.0, dtype=tf.float32)
+
+        old_values = [tf.squeeze(v, axis=[1]) for v in old_values]
         fc2_value_result_squeezed = [tf.squeeze(v, axis=[1]) for v in fc2_value_result]
 
-        self.farming_value_cost = 0.5 * tf.reduce_mean(
-            tf.square(reward[0] - fc2_value_result_squeezed[0]), axis=0
-        )
-        self.kda_value_cost = 0.5 * tf.reduce_mean(
-            tf.square(reward[1] - fc2_value_result_squeezed[1]), axis=0
-        )
-        self.damage_value_cost = 0.5 * tf.reduce_mean(
-            tf.square(reward[2] - fc2_value_result_squeezed[2]), axis=0
-        )
-        self.pushing_value_cost = 0.5 * tf.reduce_mean(
-            tf.square(reward[3] - fc2_value_result_squeezed[3]), axis=0
-        )
+        # clipped value loss
+        def clip_value_loss(values, old_values, reward):
+            value_pred_clipped = old_values + tf.clip_by_value(values - old_values, - self.clip_param,
+                                                              self.clip_param)
+            value_cost = tf.square(reward - values)
+            value_cost_clipped = tf.square(reward - value_pred_clipped)
+            return 0.5 * tf.reduce_mean(tf.maximum(value_cost, value_cost_clipped), axis=0)
+
+        self.farming_value_cost = clip_value_loss(fc2_value_result_squeezed[0], old_values[0], reward[0])
+        self.kda_value_cost = clip_value_loss(fc2_value_result_squeezed[1], old_values[1], reward[1])
+        self.damage_value_cost = clip_value_loss(fc2_value_result_squeezed[2], old_values[2], reward[2])
+        self.pushing_value_cost = clip_value_loss(fc2_value_result_squeezed[3], old_values[3], reward[3])
+
+        # self.farming_value_cost = 0.5 * tf.reduce_mean(
+        #     tf.square(reward[0] - fc2_value_result_squeezed[0]), axis=0
+        # )
+        # self.kda_value_cost = 0.5 * tf.reduce_mean(
+        #     tf.square(reward[1] - fc2_value_result_squeezed[1]), axis=0
+        # )
+        # self.damage_value_cost = 0.5 * tf.reduce_mean(
+        #     tf.square(reward[2] - fc2_value_result_squeezed[2]), axis=0
+        # )
+        # self.pushing_value_cost = 0.5 * tf.reduce_mean(
+        #     tf.square(reward[3] - fc2_value_result_squeezed[3]), axis=0
+        # )
         # for i in range(0, 4):
         #     self.value_cost += 0.5 * tf.reduce_mean(
         #         tf.square(reward[i] - fc2_value_result_squeezed[i]), axis=0
@@ -954,8 +979,21 @@ class Algorithm:
         #  action layer # #
         for index in range(0, len(self.label_size_list) - 1):
             with tf.variable_scope("fc2_label_%d" % (index)):
+                fc1_label_weight = self._fc_weight_variable(
+                    shape=[self.lstm_unit_size, 64],
+                    name="fc1_label_%d_weight" % (index),
+                )
+                fc1_label_bias = self._bias_variable(
+                    shape=[64],
+                    name="fc1_label_%d_bias" % (index),
+                )
+                fc1_label_result = tf.nn.relu(
+                    (tf.matmul(reshape_lstm_outputs_result, fc1_label_weight)
+                     + fc1_label_bias),
+                    name="fc1_label_%d_result" % (index),
+                )
                 fc2_label_weight = self._fc_weight_variable(
-                    shape=[self.lstm_unit_size, self.label_size_list[index]],
+                    shape=[64, self.label_size_list[index]],
                     name="fc2_label_%d_weight" % (index),
                 )
                 fc2_label_bias = self._bias_variable(
@@ -963,15 +1001,28 @@ class Algorithm:
                     name="fc2_label_%d_bias" % (index),
                 )
                 fc2_label_result = tf.add(
-                    tf.matmul(reshape_lstm_outputs_result, fc2_label_weight),
+                    tf.matmul(fc1_label_result, fc2_label_weight),
                     fc2_label_bias,
                     name="fc2_label_%d_result" % (index),
                 )
                 result_list.append(fc2_label_result)
 
         with tf.variable_scope("fc2_label_%d" % (len(self.label_size_list) - 1)):
+            fc1_label_weight = self._fc_weight_variable(
+                shape=[self.lstm_unit_size, 64],
+                name="fc1_label_%d_weight" % (len(self.label_size_list) - 1),
+            )
+            fc1_label_bias = self._bias_variable(
+                shape=[64],
+                name="fc1_label_%d_bias" % (len(self.label_size_list) - 1),
+            )
+            fc1_label_result = tf.nn.relu(
+                (tf.matmul(reshape_lstm_outputs_result, fc1_label_weight)
+                 + fc1_label_bias),
+                name="fc1_label_%d_result" % (len(self.label_size_list) - 1),
+            )
             fc2_label_weight = self._fc_weight_variable(
-                shape=[self.lstm_unit_size, self.target_embed_dim],
+                shape=[64, self.target_embed_dim],
                 name="fc2_label_%d_weight" % (len(self.label_size_list) - 1),
             )
             fc2_label_bias = self._bias_variable(
@@ -979,7 +1030,7 @@ class Algorithm:
                 name="fc2_label_%d_bias" % (len(self.label_size_list) - 1),
             )
             fc2_label_result = tf.add(
-                tf.matmul(reshape_lstm_outputs_result, fc2_label_weight),
+                tf.matmul(fc1_label_result, fc2_label_weight),
                 fc2_label_bias,
                 name="fc2_label_%d_result" % (len(self.label_size_list) - 1),
             )

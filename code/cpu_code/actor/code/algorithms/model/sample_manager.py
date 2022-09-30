@@ -272,6 +272,9 @@ class SampleManager:
                 idx += 4
                 sample_batch[cnt, idx] = rl_info.advantage
                 idx += 1
+                # value
+                sample_batch[cnt, idx: idx + 4] = rl_info.value
+                idx += 4
 
                 # labels
                 dlen = 6
