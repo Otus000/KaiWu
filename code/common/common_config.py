@@ -144,7 +144,7 @@ class Config:
     BATTLE_MODE = 2
     AISERVERPORT = [10010, 10011]
     # kinghonour: 1e-5 atari: 2.5e-4
-    INIT_LEARNING_RATE = 1e-4
+    INIT_LEARNING_RATE = 5e-4
     END_LEARNING_RATE = 1e-5
     ALPHA = 0.5
     BETA = 0.01
