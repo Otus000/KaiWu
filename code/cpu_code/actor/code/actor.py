@@ -157,7 +157,7 @@ class Actor:
                     else:
                         sample_manager.save_last_sample(agent_id=i, reward=0)
 
-    def _run_episode(self, env_config, eval=False, load_models=None, eval_info=""):
+    def _run_episode(self, env_config, eval=False, load_models=None, eval_info="", battle_info=None):
         for item in g_log_time.items():
             g_log_time[item[0]] = []
         sample_manager = self.m_sample_manager
@@ -223,7 +223,7 @@ class Actor:
 
                 if agent.is_latest_model and not eval:
                     sample_manager.save_sample(
-                        **sample, agent_id=i, game_id=game_id, uuid=self.m_task_uuid
+                        **sample, agent_id=i, game_id=game_id, uuid=self.m_task_uuid, battle_info=battle_info
                     )
             log_time_func("agent_process", end=True)
 
@@ -426,6 +426,8 @@ class Actor:
                 dict(self.ALL_CONFIG_DICT[hero_name2][1]),
             ]
 
+            battle_info = (camp1_index + 1) * (camp2_index + 1)
+
             camp1_index += 1
             if camp1_index % 5 == 0:
                 camp1_index = 0
@@ -445,7 +447,7 @@ class Actor:
                         )
 
                     self._run_episode(
-                        config_dicts, True, load_models=cur_models, eval_info=eval_info
+                        config_dicts, True, load_models=cur_models, eval_info=eval_info, battle_info=battle_info
                     )
                     # swap camp
                     cur_models.reverse()
@@ -455,7 +457,7 @@ class Actor:
                         self._episode_num + 0
                     ) % Config.EVAL_FREQ == 0 and self.m_config_id == 0
                     self._run_episode(
-                        config_dicts, eval_with_common_ai, load_models=load_models
+                        config_dicts, eval_with_common_ai, load_models=load_models, battle_info=battle_info
                     )
                 if self.env.render is not None:
                     self.env.render.dump_one_round()

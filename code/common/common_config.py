@@ -47,6 +47,7 @@ class ModelConfig:
         1,
         1,
         1,
+        1,
         512,
         512,
     ]
@@ -106,6 +107,7 @@ class ModelConfig:
         [16],
         [16],
         [16],
+        [16],
         [512],
         [512],
     ]
@@ -122,13 +124,13 @@ class ModelConfig:
 
 
 class Config:
-    slow_time = 0.0
+    slow_time = 0.025
     TRAIN_MODE = 0
     EVAL_MODE = 1
     BATTLE_MODE = 2
     AISERVERPORT = [10010, 10011]
     # kinghonour: 1e-5 atari: 2.5e-4
-    INIT_LEARNING_RATE = 1e-4
+    INIT_LEARNING_RATE = 5e-4
     END_LEARNING_RATE = 1e-5
     ALPHA = 0.5
     BETA = 0.01

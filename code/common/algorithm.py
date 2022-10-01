@@ -94,7 +94,7 @@ class Algorithm:
                 seri_vec, init_lstm_cell, init_lstm_hidden, only_inference=True
             )
             logits_list, value_list = (
-                fc_label_result_list[:-1],
+                fc_label_result_list[:-2],
                 fc_label_result_list[-1],
             )
             self.logits = tf.layers.flatten(tf.concat(logits_list, axis=1))
@@ -121,7 +121,7 @@ class Algorithm:
         advantage = data_list[2]
         advantage = tf.reshape(advantage, [-1, self.data_split_shape[2]])
 
-        label_list = data_list[3 : 3 + len(self.label_size_list)]
+        label_list = data_list[3: 3 + len(self.label_size_list)]
         for shape_index in range(len(self.label_size_list)):
             # label_list[shape_index] = tf.cast(label_list,dtype=tf.int32)
             label_list[shape_index] = tf.cast(
@@ -137,8 +137,8 @@ class Algorithm:
             squeeze_label_list.append(tf.squeeze(ele, axis=[1]))
 
         old_label_probability_list = data_list[
-            3 + len(self.label_size_list) : 3 + 2 * len(self.label_size_list)
-        ]
+                                     3 + len(self.label_size_list): 3 + 2 * len(self.label_size_list)
+                                     ]
         for shape_index in range(len(self.label_size_list)):
             old_label_probability_list[shape_index] = tf.reshape(
                 old_label_probability_list[shape_index],
@@ -149,8 +149,8 @@ class Algorithm:
             )
 
         weight_list = data_list[
-            3 + 2 * len(self.label_size_list) : 3 + 3 * len(self.label_size_list)
-        ]
+                      3 + 2 * len(self.label_size_list): 3 + 3 * len(self.label_size_list)
+                      ]
         for shape_index in range(len(self.label_size_list)):
             weight_list[shape_index] = tf.reshape(
                 weight_list[shape_index],
@@ -158,12 +158,15 @@ class Algorithm:
                     -1,
                     self.data_split_shape[
                         3 + 2 * len(self.label_size_list) + shape_index
-                    ],
+                        ],
                 ],
             )
 
-        is_train = data_list[-3]
-        is_train = tf.reshape(is_train, [-1, self.data_split_shape[-3]])
+        is_train = data_list[-4]
+        is_train = tf.reshape(is_train, [-1, self.data_split_shape[-4]])
+
+        battle_info = data_list[-3]
+        battle_info = tf.reshape(battle_info, [-1, self.data_split_shape[-3]])
 
         init_lstm_cell = data_list[-2]
         init_lstm_hidden = data_list[-1]
@@ -177,13 +180,15 @@ class Algorithm:
         loss = self._calculate_loss(
             label_list,
             old_label_probability_list,
-            fc_label_result_list[:-1],
+            fc_label_result_list[:-2],
             reward,
             advantage,
             fc_label_result_list[-1],
             seri_vec,
             is_train,
             weight_list,
+            battle_info,
+            fc_label_result_list[-2],
         )
         info_list = {
             "loss": loss,
@@ -198,12 +203,12 @@ class Algorithm:
         return tf.train.AdamOptimizer(learning_rate=self.learning_rate, epsilon=0.00001)
 
     def _squeeze_tensor(
-        self,
-        unsqueeze_reward,
-        unsqueeze_advantage,
-        unsqueeze_label_list,
-        unsqueeze_frame_is_train,
-        unsqueeze_weight_list,
+            self,
+            unsqueeze_reward,
+            unsqueeze_advantage,
+            unsqueeze_label_list,
+            unsqueeze_frame_is_train,
+            unsqueeze_weight_list,
     ):
         reward = tf.squeeze(unsqueeze_reward, axis=[1])
         advantage = tf.squeeze(unsqueeze_advantage, axis=[1])
@@ -217,16 +222,18 @@ class Algorithm:
         return reward, advantage, label_list, frame_is_train, weight_list
 
     def _calculate_loss(
-        self,
-        unsqueeze_label_list,
-        old_label_probability_list,
-        fc2_label_list,
-        unsqueeze_reward,
-        unsqueeze_advantage,
-        fc2_value_result,
-        seri_vec,
-        unsqueeze_is_train,
-        unsqueeze_weight_list,
+            self,
+            unsqueeze_label_list,
+            old_label_probability_list,
+            fc2_label_list,
+            unsqueeze_reward,
+            unsqueeze_advantage,
+            fc2_value_result,
+            seri_vec,
+            unsqueeze_is_train,
+            unsqueeze_weight_list,
+            battle_info,
+            battle_info_result
     ):
 
         reward, advantage, label_list, _, weight_list = self._squeeze_tensor(
@@ -255,13 +262,20 @@ class Algorithm:
             feature_legal_action, self.label_size_list, axis=1
         )
 
+        # battle_info_label = tf.constant(battle_info)
+        battle_info_loss = tf.reduce_mean(
+            tf.square(tf.squeeze(battle_info, axis=-1) - tf.squeeze(battle_info_result), axis=-1), axis=0
+        )
+        # print(f"DEBUG battle_info: {battle_info}")
+        # print(f"DEBUG battle_info_result: {battle_info_result}")
+
         # loss of value net
         fc2_value_result_squeezed = tf.squeeze(fc2_value_result, axis=[1])
         self.value_cost = 0.5 * tf.reduce_mean(
             tf.square(reward - fc2_value_result_squeezed), axis=0
         )
-        new_advantage = reward - fc2_value_result_squeezed
-        self.value_cost = 0.5 * tf.reduce_mean(tf.square(new_advantage), axis=0)
+        # new_advantage = reward - fc2_value_result_squeezed
+        # self.value_cost = 0.5 * tf.reduce_mean(tf.square(new_advantage), axis=0)
 
         # for entropy loss calculate
         label_logits_subtract_max_list = []
@@ -276,26 +290,26 @@ class Algorithm:
                     label_list[task_index], self.label_size_list[task_index]
                 )
                 legal_action_flag_list_max_mask = (
-                    1 - legal_action_flag_list[task_index]
-                ) * tf.pow(10.0, 20.0)
+                                                          1 - legal_action_flag_list[task_index]
+                                                  ) * tf.pow(10.0, 20.0)
                 label_logits_subtract_max = tf.clip_by_value(
                     (
-                        fc2_label_list[task_index]
-                        - tf.reduce_max(
                             fc2_label_list[task_index]
-                            - legal_action_flag_list_max_mask,
-                            axis=1,
-                            keep_dims=True,
-                        )
+                            - tf.reduce_max(
+                        fc2_label_list[task_index]
+                        - legal_action_flag_list_max_mask,
+                        axis=1,
+                        keep_dims=True,
+                    )
                     ),
                     -tf.pow(10.0, 20.0),
                     1,
                 )
                 label_logits_subtract_max_list.append(label_logits_subtract_max)
                 label_exp_logits = (
-                    legal_action_flag_list[task_index]
-                    * tf.exp(label_logits_subtract_max)
-                    + self.min_policy
+                        legal_action_flag_list[task_index]
+                        * tf.exp(label_logits_subtract_max)
+                        + self.min_policy
                 )
                 label_sum_exp_logits = tf.reduce_sum(
                     label_exp_logits, axis=1, keep_dims=True
@@ -315,10 +329,10 @@ class Algorithm:
                 clip_ratio = tf.clip_by_value(ratio, 0.0, 3.0)
                 surr1 = clip_ratio * advantage
                 surr2 = (
-                    tf.clip_by_value(
-                        ratio, 1.0 - self.clip_param, 1.0 + self.clip_param
-                    )
-                    * advantage
+                        tf.clip_by_value(
+                            ratio, 1.0 - self.clip_param, 1.0 + self.clip_param
+                        )
+                        * advantage
                 )
                 temp_policy_loss = -tf.reduce_sum(
                     tf.to_float(weight_list[task_index]) * tf.minimum(surr1, surr2)
@@ -360,7 +374,7 @@ class Algorithm:
         self.entropy_cost_list = entropy_loss_list
         # sum all type cost
         self.cost_all = (
-            self.value_cost + self.policy_cost + self.var_beta * self.entropy_cost
+                self.value_cost + self.policy_cost + self.var_beta * self.entropy_cost + battle_info_loss
         )
         # make output information
         # add loss information
@@ -369,11 +383,12 @@ class Algorithm:
             self.value_cost,
             self.policy_cost,
             self.entropy_cost,
+            battle_info_loss
         ]
         return self.cost_all
 
     def _inference(
-        self, seri_vec, init_lstm_cell, init_lstm_hidden, only_inference=False
+            self, seri_vec, init_lstm_cell, init_lstm_hidden, only_inference=False
     ):
 
         # model design
@@ -404,9 +419,9 @@ class Algorithm:
         result_list = []
 
         hero_dim = (
-            int(np.sum(DimConfig.DIM_OF_HERO_FRD))
-            + int(np.sum(DimConfig.DIM_OF_HERO_EMY))
-            + int(np.sum(DimConfig.DIM_OF_HERO_MAIN))
+                int(np.sum(DimConfig.DIM_OF_HERO_FRD))
+                + int(np.sum(DimConfig.DIM_OF_HERO_EMY))
+                + int(np.sum(DimConfig.DIM_OF_HERO_MAIN))
         )
         soldier_dim = int(np.sum(DimConfig.DIM_OF_SOLDIER_1_10)) + int(
             np.sum(DimConfig.DIM_OF_SOLDIER_11_20)
@@ -632,8 +647,8 @@ class Algorithm:
                 )
                 fc1_soldier_result = tf.nn.relu(
                     (
-                        tf.matmul(soldier_1_10[index], fc1_soldier_weight)
-                        + fc1_soldier_bias
+                            tf.matmul(soldier_1_10[index], fc1_soldier_weight)
+                            + fc1_soldier_bias
                     ),
                     name="fc1_soldier_1_result_%d" % index,
                 )
@@ -646,8 +661,8 @@ class Algorithm:
                 )
                 fc2_soldier_result = tf.nn.relu(
                     (
-                        tf.matmul(fc1_soldier_result, fc2_soldier_weight)
-                        + fc2_soldier_bias
+                            tf.matmul(fc1_soldier_result, fc2_soldier_weight)
+                            + fc2_soldier_bias
                     ),
                     name="fc2_soldier_1_result_%d" % index,
                 )
@@ -700,8 +715,8 @@ class Algorithm:
                 )
                 fc1_soldier_result = tf.nn.relu(
                     (
-                        tf.matmul(soldier_11_20[index], fc1_soldier_weight)
-                        + fc1_soldier_bias
+                            tf.matmul(soldier_11_20[index], fc1_soldier_weight)
+                            + fc1_soldier_bias
                     ),
                     name="fc1_soldier_2_result_%d" % index,
                 )
@@ -714,8 +729,8 @@ class Algorithm:
                 )
                 fc2_soldier_result = tf.nn.relu(
                     (
-                        tf.matmul(fc1_soldier_result, fc2_soldier_weight)
-                        + fc2_soldier_bias
+                            tf.matmul(fc1_soldier_result, fc2_soldier_weight)
+                            + fc2_soldier_bias
                     ),
                     name="fc2_soldier_2_result_%d" % index,
                 )
@@ -978,6 +993,18 @@ class Algorithm:
             )
             result_list.append(reshape_fc3_label_result)
 
+        with tf.variable_scope("battle_info"):
+            battle_info_weight = self._fc_weight_variable(
+                shape=[self.lstm_unit_size, 1], name="battle_info_weight"
+            )
+            battle_info_bias = self._bias_variable(shape=[1], name="battle_info_bias")
+            battle_info_result = tf.nn.softmax(
+                (tf.matmul(reshape_lstm_outputs_result, battle_info_weight)
+                 + battle_info_bias),
+                name="battle_info_result",
+            )
+            result_list.append(battle_info_result)
+
         with tf.variable_scope("fc1_value"):
             fc1_value_weight = self._fc_weight_variable(
                 shape=[self.lstm_unit_size, 64], name="fc1_value_weight"
@@ -985,8 +1012,8 @@ class Algorithm:
             fc1_value_bias = self._bias_variable(shape=[64], name="fc1_value_bias")
             fc1_value_result = tf.nn.relu(
                 (
-                    tf.matmul(reshape_lstm_outputs_result, fc1_value_weight)
-                    + fc1_value_bias
+                        tf.matmul(reshape_lstm_outputs_result, fc1_value_weight)
+                        + fc1_value_bias
                 ),
                 name="fc1_value_result",
             )
@@ -1002,6 +1029,7 @@ class Algorithm:
                 name="fc2_value_result",
             )
             result_list.append(fc2_value_result)
+
         return result_list
 
     def _fc_weight_variable(self, shape, name, trainable=True):
