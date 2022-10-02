@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import tensorflow as tf
 from common_config import DimConfig
@@ -195,7 +197,9 @@ class Algorithm:
             "value_cost": self.value_cost,
             "entropy_cost": self.entropy_cost,
             "policy_cost": self.policy_cost,
+            "battle_info_cost": self.battle_info_loss,
         }
+        logging.info(f"battle_info_cost: {self.battle_info_loss}")
 
         return loss, info_list
 
@@ -263,8 +267,8 @@ class Algorithm:
         )
 
         # battle_info_label = tf.constant(battle_info)
-        battle_info_loss = tf.reduce_mean(
-            tf.square(tf.squeeze(battle_info, axis=-1) - tf.squeeze(battle_info_result), axis=-1), axis=0
+        self.battle_info_loss = tf.reduce_mean(
+            tf.square(tf.squeeze(battle_info, axis=-1) - tf.squeeze(battle_info_result, axis=-1)), axis=0
         )
         # print(f"DEBUG battle_info: {battle_info}")
         # print(f"DEBUG battle_info_result: {battle_info_result}")
@@ -374,7 +378,7 @@ class Algorithm:
         self.entropy_cost_list = entropy_loss_list
         # sum all type cost
         self.cost_all = (
-                self.value_cost + self.policy_cost + self.var_beta * self.entropy_cost + battle_info_loss
+                self.value_cost + self.policy_cost + self.var_beta * self.entropy_cost + self.battle_info_loss
         )
         # make output information
         # add loss information
@@ -383,7 +387,7 @@ class Algorithm:
             self.value_cost,
             self.policy_cost,
             self.entropy_cost,
-            battle_info_loss
+            self.battle_info_loss
         ]
         return self.cost_all
 

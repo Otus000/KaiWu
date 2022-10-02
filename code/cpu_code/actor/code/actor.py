@@ -157,7 +157,7 @@ class Actor:
                     else:
                         sample_manager.save_last_sample(agent_id=i, reward=0)
 
-    def _run_episode(self, env_config, eval=False, load_models=None, eval_info="", battle_info=None):
+    def _run_episode(self, env_config, eval=False, load_models=None, eval_info="", battle_info=0):
         for item in g_log_time.items():
             g_log_time[item[0]] = []
         sample_manager = self.m_sample_manager
