@@ -15,7 +15,7 @@ from rl_framework.model_pool import ModelPoolAPIs
 from framework.common.common_func import log_time
 from config.config import ModelConfig, Config
 import rl_framework.common.logging as LOG
-
+from reward_manager import RewardManager
 
 _G_CHECK_POINT_PREFIX = "checkpoints_"
 _G_RAND_MAX = 10000
@@ -87,6 +87,8 @@ class Agent:
             self.save_h5_sample = True
             self.dataset_name = dataset
             self.dataset = h5py.File(dataset, "a")
+
+        self.reward_manager = RewardManager()
 
     def set_game_info(self, hero_camp, player_id):
         self.hero_camp = hero_camp
@@ -228,14 +230,17 @@ class Agent:
             # total_reward
             # reward[-1],
             # reward_farming (exp, gold, mana)
-            reward[2] * 0.006 + reward[-3] * 0.006 + reward[1] * 0.75,
+            reward[2] * self.reward_manager.reward_exp + reward[-3] * self.reward_manager.reward_money + reward[
+                1] * self.reward_manager.reward_ep_rate,
             # reward_kda (dead, kill, last_hit)
-            reward[0] * (-1.0) + reward[4] * (-0.6) + reward[5] * 0.5,
+            reward[0] * self.reward_manager.reward_dead + reward[4] * self.reward_manager.reward_kill + reward[
+                5] * self.reward_manager.reward_last_hit,
             # reward_damage (hp)
-            reward[3] * 2.0,
+            reward[3] * self.reward_manager.reward_hp_point,
             # reward_pushing (tower_hp)
-            reward[-2] * 5.0
-        ], dtype=np.float64)
+            reward[-2] * self.reward_manager.reward_tower_hp_point
+        ], dtype=np.float32)
+
         done = False
         prob, value, action, _ = pred_ret
 

@@ -14,6 +14,7 @@ from framework.common.common_log import CommonLogger
 from framework.common.common_log import g_log_time
 from framework.common.common_func import log_time_func
 from rl_framework.monitor import InfluxdbMonitorHandler
+from reward_manager import RewardManager
 
 IS_TRAIN = Config.IS_TRAIN
 LOG = CommonLogger.get_logger()
@@ -97,6 +98,7 @@ class Actor:
         monitor_handler.setLevel(logging.INFO)
         self.monitor_logger.addHandler(monitor_handler)
         self.render = None
+        self.reward_manager = RewardManager()
 
     def upload_monitor_data(self, data: dict):
         self.monitor_logger.info(data)
@@ -151,13 +153,13 @@ class Actor:
                                 # total_reward
                                 # reward[-1],
                                 # reward_farming (exp, gold, mana)
-                                reward[2] * 0.006 + reward[-3] * 0.006 + reward[1] * 0.75,
+                                reward[2] * self.reward_manager.reward_exp + reward[-3] * self.reward_manager.reward_money + reward[1] * self.reward_manager.reward_ep_rate,
                                 # reward_kda (dead, kill, last_hit)
-                                reward[0] * (-1.0) + reward[4] * (-0.6) + reward[5] * 0.5,
+                                reward[0] * self.reward_manager.reward_dead + reward[4] * self.reward_manager.reward_kill + reward[5] * self.reward_manager.reward_last_hit,
                                 # reward_damage (hp)
-                                reward[3] * 2.0,
+                                reward[3] * self.reward_manager.reward_hp_point,
                                 # reward_pushing (tower_hp)
-                                reward[-2] * 5.0
+                                reward[-2] * self.reward_manager.reward_tower_hp_point
                             ], dtype=np.float32)
 
                             # if np.sum(reward[1:]) != reward[0]:
