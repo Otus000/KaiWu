@@ -267,8 +267,11 @@ class Algorithm:
         )
 
         # battle_info_label = tf.constant(battle_info)
+        labels = tf.cast(tf.squeeze(battle_info, axis=-1), tf.int32)
         self.battle_info_loss = tf.reduce_mean(
-            tf.square(tf.squeeze(battle_info, axis=-1) - tf.squeeze(battle_info_result, axis=-1)), axis=0
+            tf.nn.sparse_softmax_cross_entropy_with_logits(
+                labels=labels, logits=battle_info_result
+            ), axis=0
         )
         # print(f"DEBUG battle_info: {battle_info}")
         # print(f"DEBUG battle_info_result: {battle_info_result}")
@@ -999,12 +1002,12 @@ class Algorithm:
 
         with tf.variable_scope("battle_info"):
             battle_info_weight = self._fc_weight_variable(
-                shape=[self.lstm_unit_size, 1], name="battle_info_weight"
+                shape=[self.lstm_unit_size, 25], name="battle_info_weight"
             )
-            battle_info_bias = self._bias_variable(shape=[1], name="battle_info_bias")
-            battle_info_result = tf.nn.softmax(
-                (tf.matmul(reshape_lstm_outputs_result, battle_info_weight)
-                 + battle_info_bias),
+            battle_info_bias = self._bias_variable(shape=[25], name="battle_info_bias")
+            battle_info_result = tf.add(
+                tf.matmul(reshape_lstm_outputs_result, battle_info_weight)
+                , battle_info_bias,
                 name="battle_info_result",
             )
             result_list.append(battle_info_result)

@@ -426,7 +426,7 @@ class Actor:
                 dict(self.ALL_CONFIG_DICT[hero_name2][1]),
             ]
 
-            battle_info = (camp1_index + 1) * (camp2_index + 1)
+            battle_info = (camp1_index + 1) * (camp2_index + 1) - 1
 
             camp1_index += 1
             if camp1_index % 5 == 0:
