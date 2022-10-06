@@ -226,20 +226,7 @@ class Agent:
         )
         # if len(reward[6]) > 0:
         #     print(f"DEBUG reward: {reward}")
-        reward = np.array([
-            # total_reward
-            # reward[-1],
-            # reward_farming (exp, gold, mana)
-            reward[2] * self.reward_manager.reward_exp + reward[-3] * self.reward_manager.reward_money + reward[
-                1] * self.reward_manager.reward_ep_rate,
-            # reward_kda (dead, kill, last_hit)
-            reward[0] * self.reward_manager.reward_dead + reward[4] * self.reward_manager.reward_kill + reward[
-                5] * self.reward_manager.reward_last_hit,
-            # reward_damage (hp)
-            reward[3] * self.reward_manager.reward_hp_point,
-            # reward_pushing (tower_hp)
-            reward[-2] * self.reward_manager.reward_tower_hp_point
-        ], dtype=np.float32)
+        reward = self.reward_manager.cal_multi_reward(reward)
 
         done = False
         prob, value, action, _ = pred_ret

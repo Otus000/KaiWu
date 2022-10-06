@@ -98,7 +98,6 @@ class Actor:
         monitor_handler.setLevel(logging.INFO)
         self.monitor_logger.addHandler(monitor_handler)
         self.render = None
-        self.reward_manager = RewardManager()
 
     def upload_monitor_data(self, data: dict):
         self.monitor_logger.info(data)
@@ -149,18 +148,7 @@ class Actor:
                         if type(state_dict[i]["reward"]) == tuple:
                             # if reward is a vec
                             reward = state_dict[i]["reward"]
-                            reward = np.array([
-                                # total_reward
-                                # reward[-1],
-                                # reward_farming (exp, gold, mana)
-                                reward[2] * self.reward_manager.reward_exp + reward[-3] * self.reward_manager.reward_money + reward[1] * self.reward_manager.reward_ep_rate,
-                                # reward_kda (dead, kill, last_hit)
-                                reward[0] * self.reward_manager.reward_dead + reward[4] * self.reward_manager.reward_kill + reward[5] * self.reward_manager.reward_last_hit,
-                                # reward_damage (hp)
-                                reward[3] * self.reward_manager.reward_hp_point,
-                                # reward_pushing (tower_hp)
-                                reward[-2] * self.reward_manager.reward_tower_hp_point
-                            ], dtype=np.float32)
+                            reward = agent.reward_manager.cal_multi_reward(reward)
 
                             # if np.sum(reward[1:]) != reward[0]:
                             #     print(f"DEBUG state dict reward: {state_dict[i]['reward']}\nrecon reward: {reward}")
@@ -213,6 +201,7 @@ class Actor:
             player_id = self.env.player_list[i]
             camp = self.env.player_camp.get(player_id)
             agent.set_game_info(camp, player_id)
+            agent.reward_manager.reset()
 
         # reset mem pool and models
         LOG.debug("reset sample_manager")
@@ -222,7 +211,8 @@ class Actor:
         log_time_func("reset", end=True)
         game_info = {}
         episode_infos = [{"h_act_num": 0} for _ in self.agents]
-
+        # begin = state_dict[0]['observation'][-25:]
+        # logging.info(f"DEBUG agent0:{state_dict[0]['req_pb'].frame_no}: {state_dict[0]['observation'][-25:]} \nagnet1:{state_dict[1]['req_pb'].frame_no}: {state_dict[1]['observation'][-25:]}")
         while not done:
             log_time_func("one_frame")
             # while True:
@@ -234,6 +224,7 @@ class Actor:
                     rewards[i].append(0.0)
                     continue
                 # print("agent{}".format(i),state_dict[i]['observation'])
+                agent.reward_manager.update(state_dict[i]['observation'][-25:])
                 action, d_action, sample = agent.process(state_dict[i])
                 if eval:
                     action = d_action
@@ -255,7 +246,9 @@ class Actor:
             # if np.isnan(r[0][-1]) or np.isnan(r[1][-1]):
             #     exit(0)
             log_time_func("step", end=True)
-
+            # if not np.array_equal(state_dict[0]['observation'][-25:], begin):
+            #     begin = state_dict[0]['observation'][-25:]
+            #     logging.info(f"DEBUG agent0:{state_dict[0]['req_pb'].frame_no}: {state_dict[0]['observation'][-25:]} \nagnet1:{state_dict[1]['req_pb'].frame_no}: {state_dict[1]['observation'][-25:]}")
             req_pbs = self.env.cur_req_pb
             if req_pbs[0] is None:
                 req_pb = req_pbs[1]

@@ -374,15 +374,15 @@ class Algorithm:
                         )
                         * advantage
                 )
-                # temp_policy_loss = -tf.reduce_sum(
-                #     tf.to_float(weight_list[task_index]) * tf.minimum(surr1, surr2)
-                # ) / tf.maximum(tf.reduce_sum(tf.to_float(weight_list[task_index])), 1.0)
-                # dual-clip PPO
-                clip = tf.minimum(surr1, surr2)
-                clip = tf.where(tf.math.less(advantage, 0), tf.maximum(clip, 3.0 * advantage), clip)
                 temp_policy_loss = -tf.reduce_sum(
-                    tf.to_float(weight_list[task_index]) * clip
+                    tf.to_float(weight_list[task_index]) * tf.minimum(surr1, surr2)
                 ) / tf.maximum(tf.reduce_sum(tf.to_float(weight_list[task_index])), 1.0)
+                # # dual-clip PPO
+                # clip = tf.minimum(surr1, surr2)
+                # clip = tf.where(tf.math.less(advantage, 0), tf.maximum(clip, 3.0 * advantage), clip)
+                # temp_policy_loss = -tf.reduce_sum(
+                #     tf.to_float(weight_list[task_index]) * clip
+                # ) / tf.maximum(tf.reduce_sum(tf.to_float(weight_list[task_index])), 1.0)
                 self.policy_cost = self.policy_cost + temp_policy_loss
         # cross entropy loss
         current_entropy_loss_index = 0
@@ -1119,7 +1119,7 @@ class Algorithm:
                 fc3_farming_value_bias,
                 name="fc3_farming_value_result",
             )
-            fc3_farming_value_result = 3 * fc3_farming_value_result
+            # fc3_farming_value_result = 3 * fc3_farming_value_result
             result_list.append(fc3_farming_value_result)
 
         # KDA related: the number of kill and death (kill, death, last_hit)
