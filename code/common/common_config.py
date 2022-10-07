@@ -55,6 +55,7 @@ class ModelConfig:
         1,
         1,
         1,      # is_train
+        1,      # battel_info
         512,    # lstm
         512,
     ]
@@ -122,6 +123,7 @@ class ModelConfig:
         [16],
         [16],
         [16],       # is_train
+        [16],       # battle_info
         [512],      # init_lstm_cell
         [512],      # init_lstm_hidden
     ]

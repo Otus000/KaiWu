@@ -112,6 +112,7 @@ class SampleManager:
             is_train=True,
             game_id=None,
             uuid=None,
+            battle_info=None
     ):
         """
         samples must saved by frame_no order
@@ -157,7 +158,7 @@ class SampleManager:
         # np: (6)
         rl_data_info.sub_action = sub_action[action[0]]
         rl_data_info.is_train = False if action[0] < 0 else is_train
-
+        rl_data_info.battle_info = battle_info
         # LOG.error("save {}, {}, {}".format(rl_data_info.value, rl_data_info.reward, rl_data_info.next_value))
 
         # rl_data_info.task_uuid = struct.pack('%ss' % len(uuid), bytes(uuid, encoding="utf8"))
@@ -296,6 +297,8 @@ class SampleManager:
 
                 # is_train
                 sample_batch[cnt, idx] = rl_info.is_train
+                idx += 1
+                sample_batch[cnt, idx] = rl_info.battle_info
                 idx += 1
 
                 assert idx == sample_one_size, "Sample check failed, {}/{}".format(

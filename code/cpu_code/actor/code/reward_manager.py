@@ -67,7 +67,7 @@ class RewardManager:
             self.reward_weights[k] = float(v)
 
     def reset(self):
-        self.reward_weights = self.reward_weights_begin
+        self.reward_weights = self.reward_weights_init
 
     def update(self, states):
         if states[0] == 1:
