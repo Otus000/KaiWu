@@ -1,4 +1,5 @@
 import json
+import logging
 
 import numpy as np
 
@@ -49,6 +50,8 @@ class RewardManager:
             "reward_last_hit": 1.0,
         }
         self.reward_weights = {}
+        self.decay_rate_init = 0.98
+        self.decay_rate = 1
         self.reset()
         # self.reward_money = 0.008
         # self.reward_exp = 0.008
@@ -68,8 +71,16 @@ class RewardManager:
 
     def reset(self):
         self.reward_weights = self.reward_weights_init
+        self.decay_rate = 1
 
-    def update(self, states):
+    def update(self, states, frames):
+        #self.change_stage(states)
+        if (frames + 1) % 700 == 0:
+            self.decay_rate *= self.decay_rate_init
+            for k, v in self.reward_weights.items():
+                self.reward_weights[k] = self.decay_rate * self.reward_weights_init[k]
+
+    def change_stage(self, states):
         if states[0] == 1:
             self.reward_weights = self.reward_weights_begin
         elif states[1] == 1:  # frame 2700

@@ -212,6 +212,9 @@ class Actor:
         episode_infos = [{"h_act_num": 0} for _ in self.agents]
         # begin = state_dict[0]['observation'][-25:]
         # logging.info(f"DEBUG agent0:{state_dict[0]['req_pb'].frame_no}: {state_dict[0]['observation'][-25:]} \nagnet1:{state_dict[1]['req_pb'].frame_no}: {state_dict[1]['observation'][-25:]}")
+        for i, agent in enumerate(self.agents):
+            agent.reward_manager.reset()
+        req_pb = None
         while not done:
             log_time_func("one_frame")
             # while True:
@@ -222,8 +225,9 @@ class Actor:
                     actions.append(None)
                     rewards[i].append(0.0)
                     continue
-                # print("agent{}".format(i),state_dict[i]['observation'])
-                # agent.reward_manager.update(state_dict[i]['observation'][-25:])
+                if req_pb is not None:
+                    agent.reward_manager.update(state_dict[i]['observation'][-25:], req_pb.frame_no)
+
                 action, d_action, sample = agent.process(state_dict[i])
                 if eval:
                     action = d_action
@@ -371,7 +375,8 @@ class Actor:
                     episode_infos[i]["hurt_per_frame"],
                 )
             )
-            if agent.keep_latest and not eval and (self._episode_num + 0) % Config.EVAL_FREQ == 2:
+            if agent.keep_latest and not eval and (self._episode_num + 0) % Config.EVAL_FREQ == 1:
+                LOG.info(f"DEBUG hero_id: {episode_infos[i]['hero_id']}")
                 self.upload_monitor_data(
                     {
                         "reward": episode_infos[i]["reward"],
