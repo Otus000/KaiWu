@@ -147,8 +147,7 @@ class Actor:
                     if state_dict[i]["reward"] is not None:
                         if type(state_dict[i]["reward"]) == tuple:
                             # if reward is a vec
-                            reward = state_dict[i]["reward"]
-                            reward = agent.reward_manager.cal_multi_reward(reward)
+                            reward = agent.reward_manager.cal_multi_reward(state_dict[i]["reward"])
 
                             # if np.sum(reward[1:]) != reward[0]:
                             #     print(f"DEBUG state dict reward: {state_dict[i]['reward']}\nrecon reward: {reward}")
@@ -372,7 +371,7 @@ class Actor:
                     episode_infos[i]["hurt_per_frame"],
                 )
             )
-            if agent.keep_latest and eval:
+            if agent.keep_latest and not eval and (self._episode_num + 0) % Config.EVAL_FREQ == 2:
                 self.upload_monitor_data(
                     {
                         "reward": episode_infos[i]["reward"],
