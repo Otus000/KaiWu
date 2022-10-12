@@ -218,7 +218,11 @@ class Algorithm:
         return loss, info_list
 
     def get_optimizer(self):
-        return tf.train.AdamOptimizer(learning_rate=self.learning_rate, epsilon=0.00001)
+        global_step = tf.Variable(0, trainable=False)
+        boundaries = [800000, 1000000, 1200000]
+        values = [5e-4, 2e-4, 1e-4, 5e-5]
+        lr = tf.train.piecewise_constant_decay(global_step, boundaries, values)
+        return tf.train.AdamOptimizer(learning_rate=lr, epsilon=0.00001)
 
     def _squeeze_tensor(
             self,
@@ -388,15 +392,15 @@ class Algorithm:
                         )
                         * advantage
                 )
-                # temp_policy_loss = -tf.reduce_sum(
-                #     tf.to_float(weight_list[task_index]) * tf.minimum(surr1, surr2)
-                # ) / tf.maximum(tf.reduce_sum(tf.to_float(weight_list[task_index])), 1.0)
-                # dual-clip PPO
-                clip = tf.minimum(surr1, surr2)
-                clip = tf.where(tf.math.less(advantage, 0), tf.maximum(clip, 3.0 * advantage), clip)
                 temp_policy_loss = -tf.reduce_sum(
-                    tf.to_float(weight_list[task_index]) * clip
+                    tf.to_float(weight_list[task_index]) * tf.minimum(surr1, surr2)
                 ) / tf.maximum(tf.reduce_sum(tf.to_float(weight_list[task_index])), 1.0)
+                # dual-clip PPO
+                # clip = tf.minimum(surr1, surr2)
+                # clip = tf.where(tf.math.less(advantage, 0), tf.maximum(clip, 3.0 * advantage), clip)
+                # temp_policy_loss = -tf.reduce_sum(
+                #     tf.to_float(weight_list[task_index]) * clip
+                # ) / tf.maximum(tf.reduce_sum(tf.to_float(weight_list[task_index])), 1.0)
                 self.policy_cost = self.policy_cost + temp_policy_loss
         # cross entropy loss
         current_entropy_loss_index = 0

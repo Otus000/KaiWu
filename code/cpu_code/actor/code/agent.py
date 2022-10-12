@@ -1,3 +1,4 @@
+import math
 import random
 import h5py
 import numpy as np
@@ -340,6 +341,9 @@ class Agent:
 
     # given the feature vec and legal_action,return output of the network
     def _predict_process(self, feature, legal_action):
+
+        legal_action = self.legal_action_rule_clean(feature, legal_action)
+        legal_action = self.legal_action_skill(feature, legal_action)
         # put data to input
         input_list = cvt_tensor_to_infer_input(self.model.get_input_tensors())
         input_list[0].set_data(np.array(feature))
@@ -445,3 +449,107 @@ class Agent:
         if self.dataset is not None:
             self.save_h5_sample = True
             self.dataset.close()
+
+    def calculate_distance(self, x1, y1, x2, y2):
+        return math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2))
+
+    def legal_action_rule_clean(self, feature, legal_action):
+
+        mh_x = feature[31] * 120000 - 60000
+        mh_z = feature[32] * 120000 - 60000
+
+        # main_hero从0开始
+        ms = main_soldier_start_idx = 484
+        # 一个soldier的维数
+        ms_len = 18
+        # soldier的position相对于开始的偏移
+        ms_pos = 6
+
+        # eo = enemy organ 敌方一塔
+        # position经过归一化
+        eo_x = feature[688] * (10000 + 10000) - 10000
+        eo_z = feature[689] * (41000 + 41000) - 41000
+
+        # 攻击距离
+        eo_r = feature[699] * 13000
+
+        flag_1 = flag_solder_in_tower = False
+
+        # 4 soldier
+        for i in range(4):
+            start_idx = ms + i * ms_len
+            ms_x = feature[start_idx + ms_pos] * (20000) - 10000
+            ms_z = feature[start_idx + ms_pos + 1] * (41000 * 2) - 41000
+            dis = self.calculate_distance(ms_x, ms_z, eo_x, eo_z)
+
+            # 确保小兵真的在被塔打
+            if (dis < eo_r - 500):
+                flag_1 = True
+                break
+
+        # 根据flag处理legal_action : 无人抗塔
+        # feature[682] : 敌方一塔是否alive。等于1为alive
+        if (flag_1 == False) and (feature[682] == 1.0):
+            # 计算英雄与塔的距离
+            dis_hero = self.calculate_distance(mh_x, mh_z, eo_x, eo_z)
+
+            # 即将进塔
+            if dis_hero < eo_r + 500:
+                for i in range(8):
+                    legal_action[20 + i] = 0.0
+                    legal_action[36 + i] = 0.0
+
+                # 设置不会越兵线A塔。不限制技能
+                # 8+16*2+16*2=80=[79]
+                # 这个直接让AI不点塔了?为什么?
+                # legal_action[87] = 0.0
+
+        ec_x = feature[688 - 18] * (10000 + 10000) - 10000
+        ec_z = feature[689 - 18] * (41000 + 41000) - 41000
+
+        # 攻击距离
+        ec_r = feature[699 - 18] * 13000
+        flag_2 = flag_solder_in_crystal = False
+
+        # 4 soldier
+        for i in range(4):
+            start_idx = ms + i * ms_len
+            ms_x = feature[start_idx + ms_pos] * (20000) - 10000
+            ms_z = feature[start_idx + ms_pos + 1] * (41000 * 2) - 41000
+            dis = self.calculate_distance(ms_x, ms_z, ec_x, ec_z)
+
+            # 确保小兵真的在被塔打
+            if dis < ec_r - 500:
+                flag_1 = True
+                break
+
+        # 根据flag处理legal_action : 无人抗塔
+        # 不用管alive: 拆掉水晶就赢了
+        if flag_2 == False:
+            # 计算英雄与塔的距离
+            dis_hero_cry = self.calculate_distance(mh_x, mh_z, ec_x, ec_z)
+
+            # 即将进塔
+            if dis_hero_cry < ec_r + 500:
+                for i in range(8):
+                    legal_action[20 + i] = 0.0
+                    legal_action[36 + i] = 0.0
+
+        return legal_action
+
+    # 血量健康时不能使用heal skill
+    # 未与敌方英雄交战时不能使用chosen skill
+    def legal_action_skill(self, feature, legal_action):
+
+        # 血量较高时禁用治疗技能
+        if feature[17] > 0.8:
+            legal_action[7] = 0.0
+
+        distance = feature[33] * 116000
+        atk_range = feature[35] * (8000 - 2800) + 2800
+
+        # 交战范围
+        if distance > 2 * atk_range:
+            legal_action[8] = 0.0
+
+        return legal_action

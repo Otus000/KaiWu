@@ -50,7 +50,7 @@ class RewardManager:
             "reward_last_hit": 1.0,
         }
         self.reward_weights = {}
-        self.decay_rate_init = 0.98
+        self.decay_rate_init = 0.997
         self.decay_rate = 1
         self.reset()
         # self.reward_money = 0.008
@@ -75,10 +75,13 @@ class RewardManager:
 
     def update(self, states, frames):
         #self.change_stage(states)
-        if (frames + 1) % 700 == 0:
+        if (frames + 1) % 600 == 0:
             self.decay_rate *= self.decay_rate_init
             for k, v in self.reward_weights.items():
-                self.reward_weights[k] = self.decay_rate * self.reward_weights_init[k]
+                if v > 0:
+                    self.reward_weights[k] = self.decay_rate * self.reward_weights_init[k]
+
+            # logging.info(f"DEBUG {frames}: current reward: {self.reward_weights}")
 
     def change_stage(self, states):
         if states[0] == 1:

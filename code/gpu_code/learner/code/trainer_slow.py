@@ -1,3 +1,4 @@
+import logging
 import time
 import tensorflow as tf
 from rl_framework.learner.framework.apd_benchmark import Benchmark as BenchmarkBase
@@ -55,6 +56,7 @@ class BenchmarkSlow(BenchmarkBase):
             else:
                 results = self.sess.run(self.fetches)
 
+            logging.info(results)
             batch_duration = time.time() - batch_begin
             self.local_step += 1
             if self.local_step % self.config_manager.save_model_steps != 0:
@@ -77,6 +79,11 @@ class BenchmarkSlow(BenchmarkBase):
                 )
                 self.log_manager.print_result(results)
 
+            # if self.is_chief_rank and self.local_step == 0:
+            #     self.model_manager.save_model(
+            #         self.sess, './model/m_init'
+            #     )
+                # logging.info(f"save init model at {self.local_time}")
             if (
                 self.local_step % self.config_manager.save_model_steps == 0
                 and self.is_chief_rank
@@ -86,6 +93,13 @@ class BenchmarkSlow(BenchmarkBase):
                 )
                 self.log_manager.print_info(msg)
 
+                # # 重新初始化
+                # if self.local_step % 72000 == 0:
+                #    self.model_manager.restore_model(
+                #         self.sess, './model/m_init'
+                #     )
+                   # logging.info(f"load init model at {self.local_time}")
+            # print(self.graph.opt.variables())
         images_per_sec = (
             (time.time() - start_time)
             / (self.config_manager.max_steps - self.config_manager.warmup_steps)
@@ -94,6 +108,7 @@ class BenchmarkSlow(BenchmarkBase):
         self.log_manager.print_info("-" * 64)
         self.log_manager.print_info("total images/sec: %.2f" % images_per_sec)
         self.log_manager.print_info("-" * 64)
+
         # Save the model checkpoint.
         if self.is_chief_rank:
             self.model_manager.save_model(self.sess, self.config_manager.save_path)

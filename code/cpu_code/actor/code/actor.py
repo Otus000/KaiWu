@@ -225,8 +225,8 @@ class Actor:
                     actions.append(None)
                     rewards[i].append(0.0)
                     continue
-                if req_pb is not None:
-                    agent.reward_manager.update(state_dict[i]['observation'][-25:], req_pb.frame_no)
+                # if req_pb is not None:
+                #     agent.reward_manager.update(state_dict[i]['observation'][-25:], req_pb.frame_no)
 
                 action, d_action, sample = agent.process(state_dict[i])
                 if eval:
